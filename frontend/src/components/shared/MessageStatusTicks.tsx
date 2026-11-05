@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCheck } from "lucide-react";
+import { CheckCheck } from "lucide-react";
 
 export type MessageDeliveryStatus = "sent" | "delivered" | "read";
 
@@ -12,9 +12,8 @@ type MessageStatusTicksProps = {
 };
 
 /**
- * WhatsApp-style ticks:
- * - sent: single gray (not received yet)
- * - delivered: double gray (received, unread)
+ * WhatsApp-style ticks (as used in MOTD chat info):
+ * - sent / delivered: double gray
  * - read: double blue
  */
 export default function MessageStatusTicks({
@@ -29,24 +28,13 @@ export default function MessageStatusTicks({
 
   const gray = onDark ? "text-white/55" : "text-[#8A8A80]";
   const blue = "text-[#53BDEB]";
-
-  if (normalized === "sent") {
-    return (
-      <Check
-        className={`h-3.5 w-3.5 shrink-0 ${gray} ${className}`}
-        strokeWidth={2}
-        aria-label="Sent"
-      />
-    );
-  }
+  const isRead = normalized === "read";
 
   return (
     <CheckCheck
-      className={`h-3.5 w-3.5 shrink-0 ${
-        normalized === "read" ? blue : gray
-      } ${className}`}
+      className={`h-3.5 w-3.5 shrink-0 ${isRead ? blue : gray} ${className}`}
       strokeWidth={2}
-      aria-label={normalized === "read" ? "Read" : "Delivered"}
+      aria-label={isRead ? "Read" : normalized === "delivered" ? "Delivered" : "Sent"}
     />
   );
 }

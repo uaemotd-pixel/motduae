@@ -64,6 +64,8 @@ const tailorShopSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true, required: true },
     allowCustomerCalls: { type: Boolean, default: false },
     allowCustomerSocial: { type: Boolean, default: false },
+    /** Admin gate: tailor may start WebRTC audio calls with customers in live chat. */
+    allowLiveChatAudioCalls: { type: Boolean, default: false },
   },
   {
     timestamps: true,

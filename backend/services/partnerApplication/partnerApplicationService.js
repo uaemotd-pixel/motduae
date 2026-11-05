@@ -91,11 +91,16 @@ export function toApplicationDto(doc) {
   };
 }
 
-export function toShopSnapshotDto(shop) {
+/**
+ * @param {object|null|undefined} shop
+ * @param {{ role?: string }} [opts]
+ */
+export function toShopSnapshotDto(shop, { role = "" } = {}) {
   if (!shop) {
     return null;
   }
   const pickup = shop.pickupAddress || {};
+  const isTailor = String(role || "") === "tailor";
   return {
     name: shop.name || "",
     nameAr: shop.nameAr || "",
@@ -122,7 +127,11 @@ export function toShopSnapshotDto(shop) {
     hasPayoutBank: isPayoutBankComplete(shop.payoutBank),
     allowCustomerCalls: Boolean(shop.allowCustomerCalls),
     allowCustomerSocial: Boolean(shop.allowCustomerSocial),
-    allowLiveChatAudioCalls: shop.allowLiveChatAudioCalls !== false,
+    // Fabric defaults on when unset; tailor live-chat audio defaults off (admin gate).
+    allowLiveChatAudioCalls:
+      typeof shop.allowLiveChatAudioCalls === "boolean"
+        ? shop.allowLiveChatAudioCalls
+        : !isTailor,
     updatedAt: shop.updatedAt || null,
   };
 }
@@ -145,7 +154,7 @@ export function toAdminApplicationDto(user, doc, shop) {
       createdAt: user.createdAt,
     },
     application: toApplicationDto(doc),
-    shop: toShopSnapshotDto(shop),
+    shop: toShopSnapshotDto(shop, { role: user?.role }),
     legacy: !doc,
   };
 }

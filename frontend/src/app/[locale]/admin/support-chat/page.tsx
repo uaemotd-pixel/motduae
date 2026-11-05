@@ -22,7 +22,6 @@ import {
   Mic,
   MessageSquare,
   MoreVertical,
-  Palette,
   Paperclip,
   Phone,
   PhoneOff,
@@ -36,14 +35,28 @@ import {
 } from "lucide-react";
 import ChatThreadSearchBar from "@/components/shared/ChatThreadSearchBar";
 import ChatSearchHighlight from "@/components/shared/ChatSearchHighlight";
+import ChatLinkedText from "@/components/shared/ChatLinkedText";
+import ChatLinkPreviews from "@/components/shared/ChatLinkPreviews";
+import ChatJumpToLatest from "@/components/shared/ChatJumpToLatest";
+import ChatForwardPicker from "@/components/shared/ChatForwardPicker";
 import AdminSupportEmptyScene from "@/components/admin/AdminSupportEmptyScene";
 import { findThreadMatchIds } from "@/lib/chat/threadSearch";
-import { motion } from "framer-motion";
-import type { Socket } from "socket.io-client";
 import {
-  disconnectSocket,
+  clearChatDraft,
+  readChatDraft,
+  writeChatDraft,
+} from "@/lib/chat/draftStore";
+import { forwardChatMessage } from "@/lib/chat/forwardMessage";
+import {
+  formatThreadDateBadge,
+  messageDayKey,
+} from "@/lib/chat/threadDates";
+import { formatCustomerPresenceLine } from "@/lib/format";
+import { motion } from "framer-motion";
+import {
   emitWithAck,
   getSocket,
+  releaseSupportChatSocket,
   useSocketEvent,
 } from "@/lib/realtime/socket";
 import MessageStatusTicks, {
@@ -51,18 +64,26 @@ import MessageStatusTicks, {
 } from "@/components/shared/MessageStatusTicks";
 import ChatTypingBubble from "@/components/shared/ChatTypingBubble";
 import VoiceNoteBubble from "@/components/shared/VoiceNoteBubble";
+import { useChatThreadLenis } from "@/components/providers/lenisProvider";
 import ChatAttachMenu, {
   type ChatAttachMenuAction,
 } from "@/components/shared/ChatAttachMenu";
 import ChatAttachmentBubble from "@/components/shared/ChatAttachmentBubble";
 import ChatComposerAttachPreview from "@/components/shared/ChatComposerAttachPreview";
 import ChatEmojiPicker from "@/components/shared/ChatEmojiPicker";
+import { insertAtCursor } from "@/lib/chat/insertAtCursor";
 import ChatMessageMenu, {
+  ChatPinnedMessagesBar,
+  ChatReactionBar,
+  ChatReactionChips,
   type ChatMessageMenuAction,
+  type ChatMessageReaction,
+  type ChatReactionEmoji,
 } from "@/components/shared/ChatMessageMenu";
 import ChatAvatar from "@/components/shared/ChatAvatar";
 import CallHistoryBubble from "@/components/shared/CallHistoryBubble";
 import { useAdminAudioCall } from "@/context/AdminAudioCallContext";
+import { useChatThreadScroll } from "@/hooks/useChatThreadScroll";
 import {
   formatRecordingTime,
   useVoiceRecorder,
@@ -74,6 +95,7 @@ import {
   IMAGE_ACCEPT,
   prepareChatAttachment,
   VIDEO_ACCEPT,
+  type AttachUploadStatus,
   type ChatAttachKind,
   type PreparedChatAttachment,
 } from "@/lib/chat/attachments";
@@ -107,6 +129,9 @@ type ChatMessage = {
   deletedBy?: "customer" | "agent" | null;
   replyTo?: ChatReplyTo | null;
   editedAt?: string | null;
+  reactions?: ChatMessageReaction[];
+  pinnedAt?: string | null;
+  pinnedBy?: "customer" | "agent" | null;
 };
 
 function replyPreviewOf(msg: ChatMessage) {
@@ -135,6 +160,11 @@ type LiveSessionSummary = {
   lastActivityAt: number;
   preview: ChatMessage | null;
   endedBy?: "customer" | "agent" | null;
+  /** Blocked by agent — thread stays in inbox for unblock. */
+  customerBlocked?: boolean;
+  /** Realtime customer presence (portal-only). */
+  customerOnline?: boolean;
+  customerLastSeenAt?: number | null;
 };
 
 type LiveSession = LiveSessionSummary & {
@@ -152,9 +182,16 @@ type AckResult = {
 
 type InboxFilter = "all" | "waiting" | "active" | "ended";
 
-type HeaderPanel = "contact" | "theme" | "block" | null;
+type HeaderPanel = "contact" | null;
 
-type ConfirmAction = "clear" | "deleteAll" | "deleteForMe" | null;
+type ConfirmAction =
+  | "clear"
+  | "deleteAll"
+  | "deleteForMe"
+  | "end"
+  | "block"
+  | "unblock"
+  | null;
 
 const INBOX_WIDTH_KEY = "motd-admin-livechat-inbox-width";
 
@@ -173,38 +210,6 @@ function formatMsgTime(iso: string) {
   } catch {
     return "";
   }
-}
-
-function messageDayKey(iso?: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-
-/** WhatsApp-style thread date chip: Today / Yesterday / weekday / full date. */
-function formatThreadDateBadge(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startMsg = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diffDays = Math.round(
-    (startToday.getTime() - startMsg.getTime()) / 86_400_000,
-  );
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays > 1 && diffDays < 7) {
-    return d.toLocaleDateString("en-AE", { weekday: "long" });
-  }
-  if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString("en-AE", { day: "numeric", month: "long" });
-  }
-  return d.toLocaleDateString("en-AE", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 }
 
 function formatListTime(ts: number) {
@@ -259,6 +264,7 @@ function SessionRow({
 }) {
   const waiting = session.status === "waiting";
   const ended = session.status === "ended";
+  const blocked = Boolean(session.customerBlocked);
   const unread = Math.max(0, Number(session.unreadCount) || 0);
   const hasUnread = unread > 0 && !selected;
   const preview =
@@ -271,9 +277,11 @@ function SessionRow({
           : session.preview?.text ||
             (waiting
               ? "Waiting for an agent…"
-              : ended
-                ? "Chat ended — can continue"
-                : "Conversation in progress");
+              : blocked
+                ? "Customer blocked"
+                : ended
+                  ? "Chat ended — can continue"
+                  : "Conversation in progress");
 
   return (
     <button
@@ -287,7 +295,7 @@ function SessionRow({
         name={session.customer?.name || "Visitor"}
         src={session.customer?.profilePic}
         size="lg"
-        online={!waiting && !ended}
+        online={Boolean(session.customerOnline) && !ended}
         className={[
           "border border-black/50",
           waiting ? "ring-2 ring-amber-400/80" : "",
@@ -374,6 +382,8 @@ export default function AdminSupportChatPage() {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
+  const [forwarding, setForwarding] = useState(false);
   const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [threadSearch, setThreadSearch] = useState("");
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
@@ -460,15 +470,25 @@ export default function AdminSupportChatPage() {
   const [pendingAttachment, setPendingAttachment] =
     useState<PreparedChatAttachment | null>(null);
   const pendingAttachmentRef = useRef<PreparedChatAttachment | null>(null);
+  const [attachStatus, setAttachStatus] =
+    useState<AttachUploadStatus>("idle");
+  const [attachProgress, setAttachProgress] = useState<number | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
-  const canSend = hasDraft || !!pendingAttachment;
+  const canSend =
+    attachStatus !== "preparing" &&
+    attachStatus !== "sending" &&
+    (hasDraft ||
+      (!!pendingAttachmentRef.current &&
+        (attachStatus === "ready" || attachStatus === "failed")));
 
   const clearPendingAttachment = useCallback(() => {
     pendingAttachmentRef.current = null;
     setPendingAttachment(null);
+    setAttachStatus("idle");
+    setAttachProgress(null);
   }, []);
 
   useEffect(() => {
@@ -551,10 +571,41 @@ export default function AdminSupportChatPage() {
     sendingRef.current = sending;
   }, [sending]);
 
+  const { scrollToBottom: scrollThreadToBottom } = useChatThreadLenis(
+    threadRef,
+    Boolean(active?.id),
+    active?.id,
+  );
+
+  const {
+    nearBottom,
+    unseenCount,
+    showJump,
+    jumpToLatest,
+  } = useChatThreadScroll(threadRef, active?.messages?.length || 0, {
+    enabled: Boolean(active?.id),
+    resetKey: active?.id,
+  });
+
   useEffect(() => {
-    if (!threadRef.current) return;
-    threadRef.current.scrollTop = threadRef.current.scrollHeight;
-  }, [active?.id, active?.messages?.length, chatEndedBy, peerTyping]);
+    if (!nearBottom) return;
+    scrollThreadToBottom(true);
+  }, [
+    active?.id,
+    active?.messages?.length,
+    chatEndedBy,
+    peerTyping,
+    nearBottom,
+    scrollThreadToBottom,
+  ]);
+
+  useEffect(() => {
+    const id = active?.id;
+    if (!id) return;
+    const saved = readChatDraft(id);
+    setDraft(saved);
+    draftRef.current = saved;
+  }, [active?.id]);
 
   const emitTyping = useCallback((typing: boolean) => {
     const sessionId = activeIdRef.current;
@@ -567,6 +618,8 @@ export default function AdminSupportChatPage() {
   const onDraftChange = (value: string) => {
     setDraft(value);
     draftRef.current = value;
+    const sid = activeIdRef.current;
+    if (sid) writeChatDraft(sid, value);
     if (chatEndedBy) return;
     if (value.trim()) {
       emitTyping(true);
@@ -617,14 +670,14 @@ export default function AdminSupportChatPage() {
     const socket = getSocket();
     let alive = true;
     const effectId = Symbol("support-chat");
-    (
-      getSocket() as Socket & { __supportChatEffect?: symbol }
-    ).__supportChatEffect = effectId;
+    socket.__supportChatEffect = effectId;
 
     const onConnect = () => {
       if (!alive) return;
       setConnected(true);
       setError("");
+      // Join staff:inbox (online presence + inbox updates) only while on Live Chat.
+      socket.emit("staff:subscribe-inbox");
       void refreshInbox();
     };
     const onDisconnect = () => {
@@ -642,11 +695,7 @@ export default function AdminSupportChatPage() {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       window.setTimeout(() => {
-        const s = getSocket() as Socket & { __supportChatEffect?: symbol };
-        if (s.__supportChatEffect === effectId) {
-          s.__supportChatEffect = undefined;
-          disconnectSocket();
-        }
+        releaseSupportChatSocket(effectId);
       }, 400);
     };
   }, [refreshInbox]);
@@ -730,6 +779,13 @@ export default function AdminSupportChatPage() {
             ),
           };
         });
+        // Drop edit mode if the message was just read by the peer.
+        setEditingId((id) => {
+          if (!id || map.get(id) !== "read") return id;
+          setDraft("");
+          draftRef.current = "";
+          return null;
+        });
       }
 
       // Update inbox row ticks when the preview message status changes.
@@ -749,12 +805,26 @@ export default function AdminSupportChatPage() {
   );
 
   const onEnded = useCallback(
-    (payload: { sessionId: string; endedBy?: "customer" | "agent" }) => {
+    (payload: {
+      sessionId: string;
+      endedBy?: "customer" | "agent";
+      blocked?: boolean;
+      session?: LiveSession;
+    }) => {
       const who = payload.endedBy === "agent" ? "agent" : "customer";
+      const blocked = Boolean(
+        payload.blocked || payload.session?.customerBlocked,
+      );
       setSessions((prev) =>
         prev.map((s) =>
           s.id === payload.sessionId
-            ? { ...s, status: "ended", endedBy: who }
+            ? {
+                ...s,
+                ...(payload.session || {}),
+                status: "ended",
+                endedBy: who,
+                customerBlocked: blocked || s.customerBlocked,
+              }
             : s,
         ),
       );
@@ -763,11 +833,25 @@ export default function AdminSupportChatPage() {
       emitTyping(false);
       endingRef.current = false;
       setChatEndedBy(who);
-      setActive((prev) =>
-        prev && prev.id === payload.sessionId
-          ? { ...prev, status: "ended", endedBy: who }
-          : prev,
-      );
+      if (payload.session) {
+        setActive({
+          ...payload.session,
+          status: "ended",
+          endedBy: who,
+          customerBlocked: blocked || payload.session.customerBlocked,
+        });
+      } else {
+        setActive((prev) =>
+          prev && prev.id === payload.sessionId
+            ? {
+                ...prev,
+                status: "ended",
+                endedBy: who,
+                customerBlocked: blocked || prev.customerBlocked,
+              }
+            : prev,
+        );
+      }
       setDraft("");
       draftRef.current = "";
     },
@@ -926,7 +1010,109 @@ export default function AdminSupportChatPage() {
   useSocketEvent("chat:messages-hidden", onMessagesHidden);
   useSocketEvent("chat:message-edited", onMessageEdited);
 
+  const onPresence = useCallback(
+    (payload: {
+      sessionId: string;
+      customerOnline?: boolean;
+      customerLastSeenAt?: number | null;
+    }) => {
+      const sid = String(payload.sessionId || "");
+      if (!sid) return;
+      const online = Boolean(payload.customerOnline);
+      const lastSeenAt =
+        payload.customerLastSeenAt == null
+          ? null
+          : Number(payload.customerLastSeenAt) || null;
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === sid
+            ? { ...s, customerOnline: online, customerLastSeenAt: lastSeenAt }
+            : s,
+        ),
+      );
+      setActive((prev) =>
+        prev && prev.id === sid
+          ? {
+              ...prev,
+              customerOnline: online,
+              customerLastSeenAt: lastSeenAt,
+            }
+          : prev,
+      );
+    },
+    [],
+  );
+  useSocketEvent("chat:presence", onPresence);
+
+  const onMessageReacted = useCallback(
+    (payload: { sessionId: string; message?: ChatMessage }) => {
+      if (activeIdRef.current !== payload.sessionId || !payload.message) return;
+      const next = payload.message;
+      setActive((prev) =>
+        prev && prev.id === payload.sessionId
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === next.id
+                  ? { ...m, reactions: next.reactions || [] }
+                  : m,
+              ),
+            }
+          : prev,
+      );
+    },
+    [],
+  );
+  useSocketEvent("chat:message-reacted", onMessageReacted);
+
+  const mergePinnedMessages = useCallback((updates: ChatMessage[]) => {
+    if (!updates.length) return;
+    setActive((prev) => {
+      if (!prev) return prev;
+      const byId = new Map(updates.map((m) => [m.id, m]));
+      return {
+        ...prev,
+        messages: prev.messages.map((m) => {
+          const next = byId.get(m.id);
+          if (!next) return m;
+          return {
+            ...m,
+            pinnedAt: next.pinnedAt ?? null,
+            pinnedBy: next.pinnedBy ?? null,
+          };
+        }),
+      };
+    });
+  }, []);
+
+  const onMessagePinned = useCallback(
+    (payload: {
+      sessionId: string;
+      message?: ChatMessage;
+      messages?: ChatMessage[];
+    }) => {
+      if (activeIdRef.current !== payload.sessionId) return;
+      const updates =
+        Array.isArray(payload.messages) && payload.messages.length
+          ? payload.messages
+          : payload.message
+            ? [payload.message]
+            : [];
+      mergePinnedMessages(updates);
+    },
+    [mergePinnedMessages],
+  );
+  useSocketEvent("chat:message-pinned", onMessagePinned);
+
   const openSession = async (summary: LiveSessionSummary) => {
+    const prevSid = activeIdRef.current;
+    if (prevSid && prevSid !== summary.id) {
+      try {
+        getSocket().emit("chat:away", { sessionId: prevSid });
+      } catch {
+        /* ignore */
+      }
+    }
     voice.cancel();
     clearPendingAttachment();
     setAttachOpen(false);
@@ -1020,6 +1206,131 @@ export default function AdminSupportChatPage() {
     setEditingId(null);
   }, []);
 
+  const reactToChatMessage = useCallback(
+    async (msg: ChatMessage, emoji: ChatReactionEmoji) => {
+      const sid = activeIdRef.current;
+      if (!sid || chatEndedBy || msg.deleted) return;
+      const myRole = "agent" as const;
+      const prevReaction = msg.reactions?.find((r) => r.byRole === myRole)
+        ?.emoji;
+      const nextReactions =
+        prevReaction === emoji
+          ? (msg.reactions || []).filter((r) => r.byRole !== myRole)
+          : [
+              ...(msg.reactions || []).filter((r) => r.byRole !== myRole),
+              { emoji, byRole: myRole, at: new Date().toISOString() },
+            ];
+      setActive((prev) =>
+        prev && prev.id === sid
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === msg.id ? { ...m, reactions: nextReactions } : m,
+              ),
+            }
+          : prev,
+      );
+      try {
+        const res = await emitWithAck<AckResult>("chat:react", {
+          sessionId: sid,
+          messageId: msg.id,
+          emoji,
+        });
+        if (res?.ok && res.message) {
+          setActive((prev) =>
+            prev && prev.id === sid
+              ? {
+                  ...prev,
+                  messages: prev.messages.map((m) =>
+                    m.id === res.message!.id
+                      ? { ...m, reactions: res.message!.reactions || [] }
+                      : m,
+                  ),
+                }
+              : prev,
+          );
+        }
+      } catch {
+        /* reconcile via socket event */
+      }
+    },
+    [chatEndedBy],
+  );
+
+  const flashClearRef = useRef<number | null>(null);
+  const [flashMsgId, setFlashMsgId] = useState<string | null>(null);
+
+  const jumpToMessage = useCallback((id: string) => {
+    const safeId = String(id || "").trim();
+    if (!safeId) return;
+    const el = threadRef.current?.querySelector(
+      `[data-msg-id="${safeId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`,
+    ) as HTMLElement | null;
+    if (!el) {
+      setAttachNotice("Original message is unavailable");
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashMsgId(safeId);
+    if (flashClearRef.current) window.clearTimeout(flashClearRef.current);
+    flashClearRef.current = window.setTimeout(() => {
+      setFlashMsgId(null);
+      flashClearRef.current = null;
+    }, 1600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (flashClearRef.current) window.clearTimeout(flashClearRef.current);
+    };
+  }, []);
+
+  const pinChatMessage = useCallback(
+    async (msg: ChatMessage, pinned: boolean) => {
+      const sid = activeIdRef.current;
+      if (!sid || msg.deleted) return;
+      setActive((prev) =>
+        prev && prev.id === sid
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === msg.id
+                  ? {
+                      ...m,
+                      pinnedAt: pinned ? new Date().toISOString() : null,
+                      pinnedBy: pinned ? "agent" : null,
+                    }
+                  : m,
+              ),
+            }
+          : prev,
+      );
+      try {
+        const res = await emitWithAck<{
+          ok?: boolean;
+          message?: ChatMessage;
+          messages?: ChatMessage[];
+        }>("chat:pin", {
+          sessionId: sid,
+          messageId: msg.id,
+          pinned,
+        });
+        if (res?.ok) {
+          const updates =
+            Array.isArray(res.messages) && res.messages.length
+              ? res.messages
+              : res.message
+                ? [res.message]
+                : [];
+          mergePinnedMessages(updates);
+        }
+      } catch {
+        /* reconcile via socket */
+      }
+    },
+    [mergePinnedMessages],
+  );
+
   const onMessageMenuAction = useCallback(
     async (msg: ChatMessage, action: ChatMessageMenuAction, mine: boolean) => {
       if (action === "reply") {
@@ -1034,8 +1345,16 @@ export default function AdminSupportChatPage() {
         window.setTimeout(() => composerRef.current?.focus(), 0);
         return;
       }
+      if (action === "pin") {
+        void pinChatMessage(msg, true);
+        return;
+      }
+      if (action === "unpin") {
+        void pinChatMessage(msg, false);
+        return;
+      }
       if (action === "edit") {
-        if (!mine) return;
+        if (!mine || msg.status === "read") return;
         setReplyTo(null);
         setEditingId(msg.id);
         const next = msg.caption || msg.text || "";
@@ -1064,13 +1383,61 @@ export default function AdminSupportChatPage() {
         setSelectedIds(new Set([msg.id]));
         return;
       }
+      if (action === "forward") {
+        if (msg.deleted || msg.kind === "call") return;
+        setForwardMsg(msg);
+        return;
+      }
       if (action === "delete") {
         setSelectedIds(new Set([msg.id]));
         setConfirmAction("deleteForMe");
       }
     },
-    [],
+    [pinChatMessage],
   );
+
+  const forwardTargets = useMemo(
+    () =>
+      sessions
+        .filter(
+          (s) =>
+            s.id !== activeIdRef.current &&
+            s.status === "active" &&
+            !s.customerBlocked,
+        )
+        .map((s) => ({
+          id: s.id,
+          name: s.customer?.name || "Visitor",
+          profilePic: s.customer?.profilePic,
+          status: s.status,
+          preview:
+            s.preview?.kind === "voice"
+              ? "Voice message"
+              : s.preview?.kind === "image"
+                ? "Photo"
+                : s.preview?.kind === "file"
+                  ? s.preview.fileName || "Document"
+                  : s.preview?.text || undefined,
+        })),
+    [sessions, active?.id],
+  );
+
+  const runForwardTo = async (targetSessionId: string) => {
+    if (!forwardMsg || forwarding) return;
+    setForwarding(true);
+    const res = await forwardChatMessage(targetSessionId, forwardMsg);
+    setForwarding(false);
+    if (!res.ok) {
+      setAttachNotice(
+        res.error === "not_active" || res.error === "chat_ended"
+          ? "That chat can’t receive messages right now."
+          : "Could not forward this message.",
+      );
+      return;
+    }
+    setForwardMsg(null);
+    setCopyToast("Forwarded");
+  };
 
   const sendMessage = useCallback(async () => {
     const sessionId = activeIdRef.current;
@@ -1081,7 +1448,8 @@ export default function AdminSupportChatPage() {
       sendingRef.current ||
       (!text && !attachment) ||
       chatEndedBy ||
-      voice.recording
+      voice.recording ||
+      attachStatus === "preparing"
     ) {
       return;
     }
@@ -1093,7 +1461,11 @@ export default function AdminSupportChatPage() {
     setSending(true);
     setDraft("");
     draftRef.current = "";
-    clearPendingAttachment();
+    clearChatDraft(sessionId);
+    if (attachment) {
+      setAttachStatus("sending");
+      setAttachProgress(null);
+    }
     const replyToId = replyTo?.id;
     const editId = editingId;
     setReplyTo(null);
@@ -1109,6 +1481,7 @@ export default function AdminSupportChatPage() {
         if (!res?.ok) {
           setDraft(text);
           draftRef.current = text;
+          writeChatDraft(sessionId, text);
           setEditingId(editId);
         } else {
           window.setTimeout(() => composerRef.current?.focus(), 0);
@@ -1133,26 +1506,40 @@ export default function AdminSupportChatPage() {
       if (!res?.ok) {
         setDraft(text);
         draftRef.current = text;
+        writeChatDraft(sessionId, text);
         if (attachment) {
           pendingAttachmentRef.current = attachment;
           setPendingAttachment(attachment);
+          setAttachStatus("failed");
+          setAttachNotice(
+            res.error === "rate_limited"
+              ? "Sending too fast. Wait a moment, then tap Retry."
+              : "Could not send the attachment. Tap Retry.",
+          );
+        } else if (res.error === "rate_limited") {
+          setAttachNotice("Sending too fast. Wait a moment and try again.");
         }
       } else {
+        if (attachment) clearPendingAttachment();
         window.setTimeout(() => composerRef.current?.focus(), 0);
       }
     } catch {
       setDraft(text);
       draftRef.current = text;
+      writeChatDraft(sessionId, text);
       if (editId) setEditingId(editId);
       if (attachment) {
         pendingAttachmentRef.current = attachment;
         setPendingAttachment(attachment);
+        setAttachStatus("failed");
+        setAttachNotice("Could not send the attachment. Tap Retry.");
       }
     } finally {
       sendingRef.current = false;
       setSending(false);
     }
   }, [
+    attachStatus,
     chatEndedBy,
     clearPendingAttachment,
     editingId,
@@ -1212,11 +1599,13 @@ export default function AdminSupportChatPage() {
       if (!res?.ok && attachment) {
         pendingAttachmentRef.current = attachment;
         setPendingAttachment(attachment);
+        setAttachStatus("ready");
       }
     } catch {
       if (attachment) {
         pendingAttachmentRef.current = attachment;
         setPendingAttachment(attachment);
+        setAttachStatus("ready");
       }
     } finally {
       sendingRef.current = false;
@@ -1230,8 +1619,30 @@ export default function AdminSupportChatPage() {
       if (!sessionId || sendingRef.current || chatEndedBy || voice.recording) {
         return;
       }
-      const prepared = await prepareChatAttachment(file, kind);
+      const fileName = (file.name || "file")
+        .replace(/[\\/:*?"<>|]/g, "_")
+        .slice(0, 120);
+      const previewUrl =
+        kind === "image" ? URL.createObjectURL(file) : "";
+      const stub: PreparedChatAttachment = {
+        kind: kind === "image" ? "image" : "file",
+        fileName,
+        mimeType: file.type || "",
+        fileSize: file.size,
+        data: previewUrl,
+      };
+      pendingAttachmentRef.current = null;
+      setPendingAttachment(stub);
+      setAttachStatus("preparing");
+      setAttachProgress(0);
+      setAttachOpen(false);
+      setAttachNotice("");
+      const prepared = await prepareChatAttachment(file, kind, (pct) => {
+        setAttachProgress(pct);
+      });
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
       if (!prepared.ok) {
+        clearPendingAttachment();
         setAttachNotice(
           attachmentErrorMessage(prepared.error, false, {
             kind,
@@ -1240,13 +1651,13 @@ export default function AdminSupportChatPage() {
         );
         return;
       }
-      setAttachNotice("");
-      setAttachOpen(false);
       pendingAttachmentRef.current = prepared.attachment;
       setPendingAttachment(prepared.attachment);
+      setAttachStatus("ready");
+      setAttachProgress(null);
       window.setTimeout(() => composerRef.current?.focus(), 0);
     },
-    [chatEndedBy, voice.recording],
+    [chatEndedBy, clearPendingAttachment, voice.recording],
   );
 
   const onAttachFileChange = (
@@ -1268,6 +1679,14 @@ export default function AdminSupportChatPage() {
 
   /** Leave the open conversation pane only — session stays live in the inbox. */
   const closeChatWindow = () => {
+    const sid = activeIdRef.current;
+    if (sid) {
+      try {
+        getSocket().emit("chat:away", { sessionId: sid });
+      } catch {
+        /* ignore */
+      }
+    }
     voice.cancel();
     clearPendingAttachment();
     setAttachNotice("");
@@ -1278,6 +1697,7 @@ export default function AdminSupportChatPage() {
     setSelectedIds(new Set());
     setHeaderPanel(null);
     setConfirmAction(null);
+    setForwardMsg(null);
     setPeerTyping(false);
     emitTyping(false);
     setActive(null);
@@ -1440,6 +1860,15 @@ export default function AdminSupportChatPage() {
       void clearChatMessages();
     } else if (confirmAction === "deleteForMe") {
       void runDeleteSelected();
+    } else if (confirmAction === "end") {
+      setConfirmAction(null);
+      void endActiveChat();
+    } else if (confirmAction === "block") {
+      setConfirmAction(null);
+      void blockActiveCustomer();
+    } else if (confirmAction === "unblock") {
+      setConfirmAction(null);
+      void unblockActiveCustomer();
     }
   };
 
@@ -1458,6 +1887,111 @@ export default function AdminSupportChatPage() {
       setRestarting(false);
     }
   };
+
+  const endActiveChat = async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId || chatEndedBy) return;
+    try {
+      const res = await emitWithAck<{ ok?: boolean; endedBy?: string }>(
+        "chat:end",
+        { sessionId },
+      );
+      if (!res?.ok) return;
+      // chat:ended socket event updates UI; apply local fallback.
+      onEnded({
+        sessionId,
+        endedBy: res.endedBy === "customer" ? "customer" : "agent",
+      });
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const applyCustomerBlocked = useCallback(
+    (sessionId: string, blocked: boolean, session?: LiveSession | null) => {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === sessionId
+            ? {
+                ...s,
+                customerBlocked: blocked,
+                status: blocked ? "ended" : s.status,
+                endedBy: blocked ? s.endedBy || "agent" : s.endedBy,
+              }
+            : s,
+        ),
+      );
+      if (activeIdRef.current !== sessionId) return;
+      if (session) {
+        setActive(session);
+        if (blocked || session.status === "ended") {
+          setChatEndedBy(session.endedBy === "customer" ? "customer" : "agent");
+        }
+        return;
+      }
+      setActive((prev) =>
+        prev && prev.id === sessionId
+          ? {
+              ...prev,
+              customerBlocked: blocked,
+              status: blocked ? "ended" : prev.status,
+              endedBy: blocked
+                ? prev.endedBy || "agent"
+                : prev.endedBy,
+            }
+          : prev,
+      );
+      if (blocked) setChatEndedBy((who) => who || "agent");
+    },
+    [],
+  );
+
+  const blockActiveCustomer = async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+    try {
+      const res = await emitWithAck<{
+        ok?: boolean;
+        session?: LiveSession;
+      }>("chat:block", { sessionId });
+      if (!res?.ok) return;
+      applyCustomerBlocked(sessionId, true, res.session || null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const unblockActiveCustomer = async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+    try {
+      const res = await emitWithAck<{
+        ok?: boolean;
+        session?: LiveSession;
+      }>("chat:unblock", { sessionId });
+      if (!res?.ok) return;
+      applyCustomerBlocked(sessionId, false, res.session || null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onBlocked = useCallback(
+    (payload: {
+      sessionId: string;
+      blocked?: boolean;
+      session?: LiveSession;
+    }) => {
+      applyCustomerBlocked(
+        payload.sessionId,
+        Boolean(payload.blocked),
+        payload.session || null,
+      );
+    },
+    [applyCustomerBlocked],
+  );
+
+  useSocketEvent("chat:blocked", onBlocked);
 
   const onComposerKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
@@ -1779,7 +2313,9 @@ export default function AdminSupportChatPage() {
                   name={active.customer?.name || "Visitor"}
                   src={active.customer?.profilePic}
                   size="md"
-                  online={!chatEndedBy && active.status === "active"}
+                  online={
+                    !chatEndedBy && Boolean(active.customerOnline)
+                  }
                   className="border border-black/50"
                 />
                 <div className="min-w-0">
@@ -1793,17 +2329,12 @@ export default function AdminSupportChatPage() {
                         : "You ended the chat"
                       : peerTyping
                         ? "typing…"
-                        : [
-                            kindLabel(active.customer?.kind),
-                            active.locale?.toUpperCase(),
-                            chatEndedBy
-                              ? "Ended"
-                              : active.status === "waiting"
-                                ? "Waiting"
-                                : "Online",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
+                        : formatCustomerPresenceLine({
+                            online: active.customerOnline,
+                            lastSeenAt: active.customerLastSeenAt,
+                            waiting: active.status === "waiting",
+                            locale: active.locale,
+                          })}
                   </p>
                 </div>
               </div>
@@ -1907,16 +2438,6 @@ export default function AdminSupportChatPage() {
                           },
                         },
                         {
-                          key: "theme",
-                          label: "Chat theme",
-                          icon: Palette,
-                          tone: "default" as const,
-                          onPick: () => {
-                            setHeaderMenuOpen(false);
-                            setHeaderPanel("theme");
-                          },
-                        },
-                        {
                           key: "clear",
                           label: "Clear chat",
                           icon: Eraser,
@@ -1938,24 +2459,53 @@ export default function AdminSupportChatPage() {
                         },
                         {
                           key: "close",
-                          label: "Close chat",
+                          label: "Close window",
                           icon: XCircle,
                           tone: "default" as const,
                           onPick: () => {
                             closeChatWindow();
                           },
                         },
-                        {
-                          key: "block",
-                          label: "Block",
-                          icon: Ban,
-                          tone: "danger" as const,
-                          onPick: () => {
-                            setHeaderMenuOpen(false);
-                            setHeaderPanel("block");
-                          },
-                        },
-                        ...(chatEndedBy
+                        ...(!chatEndedBy
+                          ? [
+                              {
+                                key: "end",
+                                label: "End chat",
+                                icon: PhoneOff,
+                                tone: "danger" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  setConfirmAction("end");
+                                },
+                              },
+                            ]
+                          : []),
+                        ...(active?.customerBlocked
+                          ? [
+                              {
+                                key: "unblock",
+                                label: "Unblock customer",
+                                icon: Ban,
+                                tone: "default" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  setConfirmAction("unblock");
+                                },
+                              },
+                            ]
+                          : [
+                              {
+                                key: "block",
+                                label: "Block customer",
+                                icon: Ban,
+                                tone: "danger" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  setConfirmAction("block");
+                                },
+                              },
+                            ]),
+                        ...(chatEndedBy && !active?.customerBlocked
                           ? [
                               {
                                 key: "continue",
@@ -1972,7 +2522,7 @@ export default function AdminSupportChatPage() {
                       ] as const
                     ).map((item, index) => {
                       const Icon = item.icon;
-                      const showDivider = index === 3 || index === 7;
+                      const showDivider = index === 2 || index === 5;
                       return (
                         <div key={item.key}>
                           {showDivider ? (
@@ -2059,11 +2609,23 @@ export default function AdminSupportChatPage() {
               </div>
             ) : null}
 
+            <div className="relative z-0 min-h-0 flex-1">
             <div
               ref={threadRef}
               data-lenis-prevent
-              className="relative z-0 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y px-3 py-3 [-webkit-overflow-scrolling:touch] sm:px-4 sm:py-4 md:px-8 lg:px-10"
+              data-lenis-prevent-wheel
+              data-chat-scroll
+              className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y bg-[#F7F5F0] px-3 py-3 [-webkit-overflow-scrolling:touch] sm:px-4 sm:py-4 md:px-8 lg:px-10"
             >
+              <ChatPinnedMessagesBar
+                messages={active.messages || []}
+                onJump={jumpToMessage}
+                onUnpin={(id) => {
+                  const msg = (active.messages || []).find((m) => m.id === id);
+                  if (msg) void pinChatMessage(msg, false);
+                }}
+              />
+              <div className="space-y-1">
               {(active.messages || []).map((msg, index, list) => {
                 const isMatch =
                   searchQuery.length > 0 && matchIds.includes(msg.id);
@@ -2233,11 +2795,15 @@ export default function AdminSupportChatPage() {
                           ? "rounded-[7.5px] rounded-tr-none bg-black/80 text-white"
                           : "rounded-[7.5px] rounded-tl-none border border-[#EBEBE8] bg-[#FFFDF9] text-black"
                       } ${selected ? "ring-2 ring-black/25" : ""} ${
-                        isActiveMatch
+                        flashMsgId === msg.id || isActiveMatch
                           ? "ring-2 ring-[#FFEB3B] ring-offset-1 ring-offset-transparent"
                           : isMatch
                             ? "ring-1 ring-[#FFF59D]/80"
                             : ""
+                      } ${
+                        !msg.deleted && (msg.reactions?.length || 0) > 0
+                          ? "mb-3"
+                          : ""
                       }`}
                       onContextMenu={(e) => {
                         if (selectMode || chatEndedBy) return;
@@ -2254,6 +2820,29 @@ export default function AdminSupportChatPage() {
                             : "-left-[6px] border-r-[6px] border-r-[#FFFDF9]"
                         }`}
                       />
+                      {!msg.deleted && !selectMode && !chatEndedBy ? (
+                        <ChatReactionBar
+                          myReaction={
+                            msg.reactions?.find((r) => r.byRole === "agent")
+                              ?.emoji || null
+                          }
+                          onReact={(emoji) =>
+                            void reactToChatMessage(msg, emoji)
+                          }
+                          align={mine ? "end" : "start"}
+                        />
+                      ) : null}
+                      {!msg.deleted && (msg.reactions?.length || 0) > 0 ? (
+                        <ChatReactionChips
+                          reactions={msg.reactions || []}
+                          myRole="agent"
+                          mine={mine}
+                          disabled={Boolean(chatEndedBy) || selectMode}
+                          onToggle={(emoji) =>
+                            void reactToChatMessage(msg, emoji)
+                          }
+                        />
+                      ) : null}
                       {msg.deleted ? (
                         !selectMode && !chatEndedBy ? (
                           <div
@@ -2298,6 +2887,7 @@ export default function AdminSupportChatPage() {
                                     onDark={mine}
                                     canEdit={
                                       mine &&
+                                      msg.status !== "read" &&
                                       (msg.kind === "text" ||
                                         msg.kind === "image" ||
                                         msg.kind === "file" ||
@@ -2306,7 +2896,18 @@ export default function AdminSupportChatPage() {
                                     canCopy={Boolean(
                                       (msg.caption || msg.text || "").trim(),
                                     )}
+                                    canForward={!msg.deleted}
+                                    canPin
+                                    isPinned={Boolean(msg.pinnedAt)}
                                     menuAlign="start"
+                                    myReaction={
+                                      msg.reactions?.find(
+                                        (r) => r.byRole === "agent",
+                                      )?.emoji || null
+                                    }
+                                    onReact={(emoji) =>
+                                      void reactToChatMessage(msg, emoji)
+                                    }
                                     onAction={(action) =>
                                       void onMessageMenuAction(
                                         msg,
@@ -2359,7 +2960,18 @@ export default function AdminSupportChatPage() {
                                     canCopy={Boolean(
                                       (msg.caption || msg.text || "").trim(),
                                     )}
+                                    canForward={!msg.deleted}
+                                    canPin
+                                    isPinned={Boolean(msg.pinnedAt)}
                                     menuAlign="end"
+                                    myReaction={
+                                      msg.reactions?.find(
+                                        (r) => r.byRole === "agent",
+                                      )?.emoji || null
+                                    }
+                                    onReact={(emoji) =>
+                                      void reactToChatMessage(msg, emoji)
+                                    }
                                     onAction={(action) =>
                                       void onMessageMenuAction(
                                         msg,
@@ -2375,12 +2987,18 @@ export default function AdminSupportChatPage() {
                         </div>
                       )}
                       {msg.replyTo ? (
-                        <div
-                          className={`mb-1.5 rounded-md border-s-[3px] px-2 py-1 ${
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (msg.replyTo?.id) jumpToMessage(msg.replyTo.id);
+                          }}
+                          className={`mb-1.5 w-full rounded-md border-s-[3px] px-2 py-1 text-start transition hover:cursor-pointer ${
                             mine
-                              ? "border-s-white/70 bg-white/10"
-                              : "border-s-black bg-black/[0.04]"
+                              ? "border-s-white/70 bg-white/10 hover:bg-white/15"
+                              : "border-s-black bg-black/[0.04] hover:bg-black/[0.07]"
                           }`}
+                          title="Jump to message"
                         >
                           <p
                             className={`chat-text-meta truncate font-medium ${
@@ -2399,12 +3017,12 @@ export default function AdminSupportChatPage() {
                           >
                             {msg.replyTo.text}
                           </p>
-                        </div>
+                        </button>
                       ) : null}
                       {(() => {
                         const metaInline = (
                           <span
-                            className={`chat-text-time relative top-[3px] float-end ms-2 inline-flex items-end gap-1 whitespace-nowrap leading-none tabular-nums ${
+                            className={`chat-text-time chat-text-time-inline tabular-nums ${
                               mine ? "text-white/50" : "text-[#8A8A80]"
                             }`}
                           >
@@ -2465,6 +3083,7 @@ export default function AdminSupportChatPage() {
                                   data={msg.data}
                                   fileName={msg.fileName}
                                   fileSize={msg.fileSize}
+                                  mimeType={msg.mimeType}
                                   onDark={mine}
                                 />
                               ) : null}
@@ -2486,21 +3105,25 @@ export default function AdminSupportChatPage() {
                                 data={msg.data}
                                 fileName={msg.fileName}
                                 fileSize={msg.fileSize}
+                                mimeType={msg.mimeType}
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className={textBodyClass}>
-                                  {searchQuery ? (
-                                    <ChatSearchHighlight
+                                <div className="space-y-0">
+                                  <p className={textBodyClass}>
+                                    <ChatLinkedText
                                       text={msg.caption}
                                       query={searchQuery}
                                       active={isActiveMatch}
+                                      onDark={mine}
                                     />
-                                  ) : (
-                                    msg.caption
-                                  )}
-                                  {metaInline}
-                                </p>
+                                    {metaInline}
+                                  </p>
+                                  <ChatLinkPreviews
+                                    text={msg.caption}
+                                    onDark={mine}
+                                  />
+                                </div>
                               ) : (
                                 metaRow
                               )}
@@ -2516,21 +3139,25 @@ export default function AdminSupportChatPage() {
                                 data={msg.data}
                                 fileName={msg.fileName}
                                 fileSize={msg.fileSize}
+                                mimeType={msg.mimeType}
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className={textBodyClass}>
-                                  {searchQuery ? (
-                                    <ChatSearchHighlight
+                                <div className="space-y-0">
+                                  <p className={textBodyClass}>
+                                    <ChatLinkedText
                                       text={msg.caption}
                                       query={searchQuery}
                                       active={isActiveMatch}
+                                      onDark={mine}
                                     />
-                                  ) : (
-                                    msg.caption
-                                  )}
-                                  {metaInline}
-                                </p>
+                                    {metaInline}
+                                  </p>
+                                  <ChatLinkPreviews
+                                    text={msg.caption}
+                                    onDark={mine}
+                                  />
+                                </div>
                               ) : (
                                 metaRow
                               )}
@@ -2539,18 +3166,18 @@ export default function AdminSupportChatPage() {
                         }
 
                         return (
-                          <p className={textBodyClass}>
-                            {searchQuery ? (
-                              <ChatSearchHighlight
+                          <div className="space-y-0">
+                            <p className={textBodyClass}>
+                              <ChatLinkedText
                                 text={msg.text}
                                 query={searchQuery}
                                 active={isActiveMatch}
+                                onDark={mine}
                               />
-                            ) : (
-                              msg.text
-                            )}
-                            {metaInline}
-                          </p>
+                              {metaInline}
+                            </p>
+                            <ChatLinkPreviews text={msg.text} onDark={mine} />
+                          </div>
                         );
                       })()}
                     </div>
@@ -2563,29 +3190,48 @@ export default function AdminSupportChatPage() {
                 <ChatTypingBubble label="typing…" />
               ) : null}
 
-              {chatEndedBy ? (
+              {chatEndedBy || active.customerBlocked ? (
                 <div className="flex justify-center py-4">
                   <div className="rounded-[7.5px] bg-[#FFFFFFE6] px-3.5 py-1.5 text-center shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] backdrop-blur-sm">
                     <p className="chat-text-system text-[#54656F]">
-                      {chatEndedBy === "customer"
-                        ? "This chat was ended by the customer"
-                        : "You ended this chat"}
+                      {active.customerBlocked
+                        ? "Customer is blocked — chat kept in inbox for unblock"
+                        : chatEndedBy === "customer"
+                          ? "This chat was ended by the customer"
+                          : "You ended this chat"}
                     </p>
                   </div>
                 </div>
               ) : null}
+              </div>
+            </div>
+            <ChatJumpToLatest
+              visible={showJump}
+              count={unseenCount}
+              onJump={() => jumpToLatest(scrollThreadToBottom)}
+            />
             </div>
 
             {chatEndedBy ? (
               <div className="relative z-[1] flex shrink-0 flex-col gap-2 border-t border-[#E8E8E4] bg-[#FFFDF9] px-4 py-3">
-                <button
-                  type="button"
-                  disabled={restarting}
-                  onClick={() => void restartChat()}
-                  className="w-full bg-black px-4 py-3 text-[11px] uppercase tracking-[0.16em] text-white transition hover:bg-[#1a1a1a] disabled:opacity-40 hover:cursor-pointer disabled:hover:cursor-not-allowed [font-family:var(--font-ui)]"
-                >
-                  {restarting ? "Continuing…" : "Continue chat"}
-                </button>
+                {active.customerBlocked ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmAction("unblock")}
+                    className="w-full bg-black px-4 py-3 text-[11px] uppercase tracking-[0.16em] text-white transition hover:bg-[#1a1a1a] hover:cursor-pointer [font-family:var(--font-ui)]"
+                  >
+                    Unblock customer
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={restarting}
+                    onClick={() => void restartChat()}
+                    className="w-full bg-black px-4 py-3 text-[11px] uppercase tracking-[0.16em] text-white transition hover:bg-[#1a1a1a] disabled:opacity-40 hover:cursor-pointer disabled:hover:cursor-not-allowed [font-family:var(--font-ui)]"
+                  >
+                    {restarting ? "Continuing…" : "Continue chat"}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="relative z-[1] shrink-0 bg-transparent px-2 py-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-2.5">
@@ -2632,6 +3278,9 @@ export default function AdminSupportChatPage() {
                   <ChatComposerAttachPreview
                     attachment={pendingAttachment}
                     onClear={clearPendingAttachment}
+                    status={attachStatus}
+                    progress={attachProgress}
+                    onRetry={() => void sendMessage()}
                   />
                 ) : null}
                 {voice.recording ? (
@@ -2666,13 +3315,14 @@ export default function AdminSupportChatPage() {
                     <ChatEmojiPicker
                       open={emojiOpen}
                       onClose={() => setEmojiOpen(false)}
-                      onPick={(emoji) => {
-                        setDraft((d) => d + emoji);
-                        window.setTimeout(
-                          () => composerRef.current?.focus(),
-                          0,
-                        );
-                      }}
+                      onPick={(emoji) =>
+                        insertAtCursor(
+                          composerRef.current,
+                          draft,
+                          emoji,
+                          onDraftChange,
+                        )
+                      }
                     />
                     <div className="chat-composer-shell relative flex w-full items-end gap-0.5 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:gap-1 sm:px-2 sm:py-1.5">
                       <input
@@ -2709,6 +3359,7 @@ export default function AdminSupportChatPage() {
                           disabled={sending}
                           aria-label="Attach"
                           aria-expanded={attachOpen}
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setEmojiOpen(false);
                             setAttachOpen((v) => !v);
@@ -2734,6 +3385,7 @@ export default function AdminSupportChatPage() {
                           data-chat-emoji-toggle
                           aria-label="Emoji"
                           aria-expanded={emojiOpen}
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setAttachOpen(false);
                             setEmojiOpen((v) => !v);
@@ -2813,7 +3465,9 @@ export default function AdminSupportChatPage() {
                   name={active.customer?.name || "Visitor"}
                   src={active.customer?.profilePic}
                   size="lg"
-                  online={!chatEndedBy && active.status === "active"}
+                  online={
+                    !chatEndedBy && Boolean(active.customerOnline)
+                  }
                 />
                 <div className="w-full space-y-3 text-center">
                   <p className="text-[18px] text-black [font-family:var(--font-display)]">
@@ -2846,14 +3500,17 @@ export default function AdminSupportChatPage() {
                     </div>
                     <div className="rounded-lg bg-[#F7F5F0] px-3 py-2.5">
                       <dt className="text-[10px] uppercase tracking-[0.14em] text-[#8A8A80]">
-                        Status
+                        Presence
                       </dt>
                       <dd className="mt-0.5 text-black">
                         {chatEndedBy
                           ? "Ended"
-                          : active.status === "waiting"
-                            ? "Waiting"
-                            : "Active"}
+                          : formatCustomerPresenceLine({
+                              online: active.customerOnline,
+                              lastSeenAt: active.customerLastSeenAt,
+                              waiting: active.status === "waiting",
+                              locale: active.locale,
+                            })}
                       </dd>
                     </div>
                   </dl>
@@ -2863,53 +3520,15 @@ export default function AdminSupportChatPage() {
           </div>
         ) : null}
 
-        {headerPanel === "theme" || headerPanel === "block" ? (
-          <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/25 p-3 backdrop-blur-[1px] sm:items-center sm:p-4">
-            <div className="max-h-[min(90dvh,32rem)] w-full max-w-sm overflow-y-auto overflow-hidden rounded-xl border border-[#E8E8E4] bg-white shadow-xl">
-              <div className="flex items-center justify-between border-b border-[#E8E8E4] px-4 py-3">
-                <h3 className="text-[15px] text-black [font-family:var(--font-body)]">
-                  {headerPanel === "block" ? "Block" : "Chat theme"}
-                </h3>
-                <button
-                  type="button"
-                  aria-label="Close"
-                  onClick={() => setHeaderPanel(null)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/5 hover:cursor-pointer"
-                >
-                  <X className="h-4 w-4" strokeWidth={1.75} />
-                </button>
-              </div>
-              <div className="space-y-3 px-5 py-6 text-center">
-                {headerPanel === "block" ? (
-                  <Ban
-                    className="mx-auto h-8 w-8 text-[#8A8A80]"
-                    strokeWidth={1.5}
-                  />
-                ) : (
-                  <Palette
-                    className="mx-auto h-8 w-8 text-[#8A8A80]"
-                    strokeWidth={1.5}
-                  />
-                )}
-                <p className="text-[14px] text-black [font-family:var(--font-body)]">
-                  Coming soon
-                </p>
-                <p className="text-[13px] leading-relaxed text-[#8A8A80] [font-family:var(--font-body)]">
-                  {headerPanel === "block"
-                    ? "Blocking contacts will be available in a later update. The menu option is ready for that phase."
-                    : "Chat themes will be available in a later update. The menu option is ready for that phase."}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setHeaderPanel(null)}
-                  className="mt-1 rounded-full bg-black px-4 py-2 text-[12px] text-white transition hover:bg-[#1a1a1a] hover:cursor-pointer [font-family:var(--font-body)]"
-                >
-                  Got it
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <ChatForwardPicker
+          open={Boolean(forwardMsg)}
+          targets={forwardTargets}
+          forwarding={forwarding}
+          onClose={() => {
+            if (!forwarding) setForwardMsg(null);
+          }}
+          onPick={(id) => void runForwardTo(id)}
+        />
 
         {infoMsg ? (
           <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/30 p-3 backdrop-blur-[1px] sm:items-center sm:p-4">
@@ -2973,14 +3592,26 @@ export default function AdminSupportChatPage() {
                   ? "Clear chat?"
                   : confirmAction === "deleteForMe"
                     ? "Delete for you?"
-                    : "Delete all messages?"}
+                    : confirmAction === "end"
+                      ? "End this chat?"
+                      : confirmAction === "block"
+                        ? "Block this customer?"
+                        : confirmAction === "unblock"
+                          ? "Unblock this customer?"
+                          : "Delete all messages?"}
               </h3>
               <p className="mt-2 text-[13px] leading-relaxed text-[#667781] [font-family:var(--font-body)]">
                 {confirmAction === "clear"
                   ? "All messages in this chat will be removed. The conversation stays open."
                   : confirmAction === "deleteForMe"
                     ? "Removed from your chat only. The customer still sees them."
-                    : "This permanently deletes every message in this chat."}
+                    : confirmAction === "end"
+                      ? "The customer will see that you ended the chat. They can continue within a short window; then it archives from the live inbox."
+                      : confirmAction === "block"
+                        ? "They won’t start new live chats. This thread stays in your inbox so you can unblock later."
+                        : confirmAction === "unblock"
+                          ? "They can start or continue live chats again. History stays in this thread."
+                          : "This permanently deletes every message in this chat."}
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button
@@ -2993,13 +3624,23 @@ export default function AdminSupportChatPage() {
                 <button
                   type="button"
                   onClick={runConfirmAction}
-                  className="rounded-full bg-[#B42318] px-3.5 py-2 text-[12px] text-white transition hover:bg-[#912018] hover:cursor-pointer [font-family:var(--font-body)]"
+                  className={`rounded-full px-3.5 py-2 text-[12px] text-white transition hover:cursor-pointer [font-family:var(--font-body)] ${
+                    confirmAction === "unblock"
+                      ? "bg-black hover:bg-[#1a1a1a]"
+                      : "bg-[#B42318] hover:bg-[#912018]"
+                  }`}
                 >
                   {confirmAction === "clear"
                     ? "Clear"
                     : confirmAction === "deleteForMe"
                       ? "Delete for me"
-                      : "Delete all"}
+                      : confirmAction === "end"
+                        ? "End chat"
+                        : confirmAction === "block"
+                          ? "Block"
+                          : confirmAction === "unblock"
+                            ? "Unblock"
+                            : "Delete all"}
                 </button>
               </div>
             </div>

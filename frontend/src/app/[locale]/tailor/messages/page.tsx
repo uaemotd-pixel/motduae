@@ -1,0 +1,3681 @@
+"use client";
+
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  ArrowLeft,
+  Ban,
+  CheckSquare,
+  Eraser,
+  Headphones,
+  Info,
+  Mic,
+  MessageSquare,
+  MoreVertical,
+  Paperclip,
+  PenLine,
+  Phone,
+  PhoneOff,
+  RefreshCw,
+  Search,
+  Send,
+  Smile,
+  Trash2,
+  UserRound,
+  X,
+  XCircle,
+} from "lucide-react";
+import ChatThreadSearchBar from "@/components/shared/ChatThreadSearchBar";
+import ChatSearchHighlight from "@/components/shared/ChatSearchHighlight";
+import ChatLinkedText from "@/components/shared/ChatLinkedText";
+import ChatLinkPreviews from "@/components/shared/ChatLinkPreviews";
+import ChatJumpToLatest from "@/components/shared/ChatJumpToLatest";
+import ChatForwardPicker from "@/components/shared/ChatForwardPicker";
+import TailorStoreEmptyScene from "@/components/tailor/TailorStoreEmptyScene";
+import { findThreadMatchIds } from "@/lib/chat/threadSearch";
+import {
+  clearChatDraft,
+  readChatDraft,
+  writeChatDraft,
+} from "@/lib/chat/draftStore";
+import { forwardChatMessage } from "@/lib/chat/forwardMessage";
+import {
+  formatThreadDateBadge,
+  messageDayKey,
+} from "@/lib/chat/threadDates";
+import { formatCustomerPresenceLine } from "@/lib/format";
+import { fetchOwnTailorShop } from "@/lib/tailorShop";
+import { useLocale } from "next-intl";
+import { motion } from "framer-motion";
+import {
+  emitWithAck,
+  getSocket,
+  releaseSupportChatSocket,
+  useSocketEvent,
+} from "@/lib/realtime/socket";
+import MessageStatusTicks, {
+  type MessageDeliveryStatus,
+} from "@/components/shared/MessageStatusTicks";
+import ChatTypingBubble from "@/components/shared/ChatTypingBubble";
+import { useChatThreadLenis } from "@/components/providers/lenisProvider";
+import VoiceNoteBubble from "@/components/shared/VoiceNoteBubble";
+import ChatAttachMenu, {
+  type ChatAttachMenuAction,
+} from "@/components/shared/ChatAttachMenu";
+import ChatAttachmentBubble from "@/components/shared/ChatAttachmentBubble";
+import ChatComposerAttachPreview from "@/components/shared/ChatComposerAttachPreview";
+import ChatEmojiPicker from "@/components/shared/ChatEmojiPicker";
+import { insertAtCursor } from "@/lib/chat/insertAtCursor";
+import ChatMessageMenu, {
+  ChatPinnedMessagesBar,
+  ChatReactionBar,
+  ChatReactionChips,
+  type ChatMessageMenuAction,
+  type ChatMessageReaction,
+  type ChatReactionEmoji,
+} from "@/components/shared/ChatMessageMenu";
+import ChatAvatar from "@/components/shared/ChatAvatar";
+import CallHistoryBubble from "@/components/shared/CallHistoryBubble";
+import { useTailorAudioCall } from "@/context/TailorAudioCallContext";
+import { useChatThreadScroll } from "@/hooks/useChatThreadScroll";
+import {
+  formatRecordingTime,
+  useVoiceRecorder,
+} from "@/hooks/useVoiceRecorder";
+import {
+  attachmentErrorMessage,
+  AUDIO_ACCEPT,
+  FILE_ACCEPT,
+  IMAGE_ACCEPT,
+  prepareChatAttachment,
+  VIDEO_ACCEPT,
+  type AttachUploadStatus,
+  type ChatAttachKind,
+  type PreparedChatAttachment,
+} from "@/lib/chat/attachments";
+
+type ChatReplyTo = {
+  id: string;
+  role: "customer" | "agent" | "system";
+  kind?: "text" | "voice" | "image" | "file" | "call";
+  text: string;
+  senderName?: string;
+};
+
+type ChatMessage = {
+  id: string;
+  role: "customer" | "agent" | "system";
+  kind?: "text" | "voice" | "image" | "file" | "call";
+  text: string;
+  caption?: string;
+  audio?: string;
+  durationMs?: number;
+  callOutcome?: "answered" | "missed" | "rejected" | "cancelled" | "failed";
+  data?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileSize?: number;
+  attachmentKind?: "image" | "file";
+  at: string;
+  senderName?: string;
+  status?: MessageDeliveryStatus;
+  deleted?: boolean;
+  deletedBy?: "customer" | "agent" | null;
+  replyTo?: ChatReplyTo | null;
+  editedAt?: string | null;
+  reactions?: ChatMessageReaction[];
+  pinnedAt?: string | null;
+  pinnedBy?: "customer" | "agent" | null;
+};
+
+function replyPreviewOf(msg: ChatMessage) {
+  if (msg.deleted) return "Deleted message";
+  if (msg.kind === "voice") return "Voice message";
+  if (msg.kind === "image") return "Photo";
+  if (msg.kind === "file") return msg.fileName || "Document";
+  if (msg.kind === "call") return (msg.text || "Voice call").trim();
+  return (msg.caption || msg.text || "").trim();
+}
+
+type LiveSessionSummary = {
+  id: string;
+  customer: {
+    name: string;
+    email?: string;
+    kind?: string;
+    profilePic?: string;
+  };
+  agent: { name: string; userId?: string; profilePic?: string } | null;
+  status: "waiting" | "active" | "ended";
+  locale?: string;
+  messageCount: number;
+  /** Customer messages the agent has not marked read yet. */
+  unreadCount?: number;
+  lastActivityAt: number;
+  preview: ChatMessage | null;
+  endedBy?: "customer" | "agent" | null;
+  /** Blocked by store — thread stays in inbox for unblock. */
+  customerBlocked?: boolean;
+  /** Realtime customer presence (portal-only). */
+  customerOnline?: boolean;
+  customerLastSeenAt?: number | null;
+};
+
+type LiveSession = LiveSessionSummary & {
+  messages: ChatMessage[];
+};
+
+type AckResult = {
+  ok: boolean;
+  error?: string;
+  sessions?: LiveSessionSummary[];
+  session?: LiveSession;
+  message?: ChatMessage;
+  endedBy?: "customer" | "agent";
+};
+
+type InboxFilter = "all" | "waiting" | "active" | "ended";
+
+type HeaderPanel = "contact" | null;
+
+type ConfirmAction =
+  | "clear"
+  | "deleteAll"
+  | "deleteForMe"
+  | "end"
+  | "block"
+  | "unblock"
+  | null;
+
+const INBOX_WIDTH_KEY = "motd-tailor-livechat-inbox-width";
+
+/** Shell listens so the mobile tailor menu can hide while a chat is open (WhatsApp-style). */
+export const TAILOR_MESSAGES_FOCUS_EVENT = "motd-tailor-messages-focus";
+const INBOX_MIN = 280;
+const INBOX_MAX = 560;
+const INBOX_DEFAULT = 380;
+
+function formatMsgTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString("en-AE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatListTime(ts: number) {
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) {
+    return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit" });
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate()
+  ) {
+    return "Yesterday";
+  }
+  return d.toLocaleDateString("en-AE", { day: "numeric", month: "short" });
+}
+
+function kindLabel(kind?: string) {
+  if (kind === "registered") return "Customer";
+  if (kind === "guest") return "Guest";
+  return "Visitor";
+}
+
+function readInboxWidth() {
+  if (typeof window === "undefined") return INBOX_DEFAULT;
+  try {
+    const raw = Number(localStorage.getItem(INBOX_WIDTH_KEY));
+    if (Number.isFinite(raw) && raw >= INBOX_MIN && raw <= INBOX_MAX) {
+      return Math.round(raw);
+    }
+  } catch {
+    // ignore
+  }
+  return INBOX_DEFAULT;
+}
+
+function SessionRow({
+  session,
+  selected,
+  onSelect,
+}: {
+  session: LiveSessionSummary;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const waiting = session.status === "waiting";
+  const ended = session.status === "ended";
+  const blocked = Boolean(session.customerBlocked);
+  const unread = Math.max(0, Number(session.unreadCount) || 0);
+  const hasUnread = unread > 0 && !selected;
+  const preview =
+    session.preview?.kind === "voice"
+      ? "Voice message"
+      : session.preview?.kind === "image"
+        ? "Photo"
+        : session.preview?.kind === "file"
+          ? session.preview.fileName || "Document"
+          : session.preview?.text ||
+            (waiting
+              ? "Waiting for an agent…"
+              : blocked
+                ? "Customer blocked"
+                : ended
+                  ? "Chat ended — can continue"
+                  : "Conversation in progress");
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-start transition hover:cursor-pointer touch-manipulation sm:gap-3 sm:py-3 ${
+        selected ? "bg-[#F0EEE8]" : "bg-white hover:bg-[#F7F5F0]"
+      }`}
+    >
+      <ChatAvatar
+        name={session.customer?.name || "Visitor"}
+        src={session.customer?.profilePic}
+        size="lg"
+        online={Boolean(session.customerOnline) && !ended}
+        className={[
+          "border border-black/50",
+          waiting ? "ring-2 ring-amber-400/80" : "",
+          ended ? "opacity-80" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      />
+
+      <span className="min-w-0 flex-1 border-b border-[#E8E8E4] pb-2.5 sm:pb-3">
+        <span className="flex items-baseline justify-between gap-2">
+          <span
+            className={`chat-text-list-name truncate text-black ${
+              hasUnread ? "font-semibold" : ""
+            }`}
+          >
+            {session.customer?.name || "Visitor"}
+          </span>
+          <span
+            className={`chat-text-list-time shrink-0 tabular-nums ${
+              hasUnread
+                ? "font-medium text-black"
+                : waiting
+                  ? "text-amber-700"
+                  : "text-[#8A8A80]"
+            }`}
+          >
+            {formatListTime(session.lastActivityAt)}
+          </span>
+        </span>
+        <span className="mt-0.5 flex items-center gap-1.5">
+          {!waiting && session.preview?.role === "agent" && !hasUnread ? (
+            <MessageStatusTicks status={session.preview?.status || "sent"} />
+          ) : null}
+          <span
+            className={`chat-text-list-preview min-w-0 flex-1 truncate ${
+              hasUnread
+                ? "font-medium text-[#111111]"
+                : "text-[#8A8A80]"
+            }`}
+          >
+            {preview}
+          </span>
+          {hasUnread ? (
+            <span
+              aria-label={`${unread > 99 ? "99+" : unread} unread`}
+              className="ms-auto flex h-[1.15rem] min-w-[1.15rem] shrink-0 items-center justify-center rounded-full bg-black px-1.5 text-[10px] font-semibold leading-none text-white tabular-nums [font-family:var(--font-ui)] sm:h-[1.25rem] sm:min-w-[1.25rem] sm:text-[11px]"
+            >
+              {unread > 99 ? "99+" : unread}
+            </span>
+          ) : null}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+export default function TailorShopMessagesPage() {
+  const locale = useLocale();
+  const [storeName, setStoreName] = useState("");
+  const [allowLiveChatAudioCalls, setAllowLiveChatAudioCalls] = useState(false);
+  const [sessions, setSessions] = useState<LiveSessionSummary[]>([]);
+  const [active, setActive] = useState<LiveSession | null>(null);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  /** Soft notice above the composer (wrong format, size, mic). */
+  const [attachNotice, setAttachNotice] = useState("");
+  const [connected, setConnected] = useState(false);
+  const [inboxWidth, setInboxWidth] = useState(INBOX_DEFAULT);
+  const [resizing, setResizing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<InboxFilter>("all");
+  const [chatEndedBy, setChatEndedBy] = useState<"customer" | "agent" | null>(
+    null,
+  );
+  const [restarting, setRestarting] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
+  const [menuMsgId, setMenuMsgId] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatReplyTo | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<ChatMessage | null>(null);
+  const [copyToast, setCopyToast] = useState("");
+  const [copyToastShown, setCopyToastShown] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [headerPanel, setHeaderPanel] = useState<HeaderPanel>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
+  const [forwarding, setForwarding] = useState(false);
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+  const threadSearchInputRef = useRef<HTMLInputElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const searchQuery = threadSearch.trim();
+  const matchIds = useMemo(
+    () => findThreadMatchIds(active?.messages || [], searchQuery),
+    [active?.messages, searchQuery],
+  );
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const activeIdRef = useRef<string | null>(null);
+  const draftRef = useRef("");
+  const sendingRef = useRef(false);
+  const endingRef = useRef(false);
+  const typingIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const amTypingRef = useRef(false);
+  const voice = useVoiceRecorder();
+  const hasDraft = draft.trim().length > 0;
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [pendingAttachment, setPendingAttachment] =
+    useState<PreparedChatAttachment | null>(null);
+  const pendingAttachmentRef = useRef<PreparedChatAttachment | null>(null);
+  const [attachStatus, setAttachStatus] =
+    useState<AttachUploadStatus>("idle");
+  const [attachProgress, setAttachProgress] = useState<number | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const canSend =
+    attachStatus !== "preparing" &&
+    attachStatus !== "sending" &&
+    (hasDraft ||
+      (!!pendingAttachmentRef.current &&
+        (attachStatus === "ready" || attachStatus === "failed")));
+
+  const clearPendingAttachment = useCallback(() => {
+    pendingAttachmentRef.current = null;
+    setPendingAttachment(null);
+    setAttachStatus("idle");
+    setAttachProgress(null);
+  }, []);
+
+  useEffect(() => {
+    setInboxWidth(readInboxWidth());
+  }, []);
+
+  useEffect(() => {
+    if (!attachNotice) return;
+    const t = window.setTimeout(() => setAttachNotice(""), 4000);
+    return () => window.clearTimeout(t);
+  }, [attachNotice]);
+
+  useEffect(() => {
+    if (!copyToast) return;
+    setCopyToastShown(true);
+    const fade = window.setTimeout(() => setCopyToastShown(false), 2200);
+    const clear = window.setTimeout(() => setCopyToast(""), 2800);
+    return () => {
+      window.clearTimeout(fade);
+      window.clearTimeout(clear);
+    };
+  }, [copyToast]);
+
+  useEffect(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setHeaderPanel(null);
+    setConfirmAction(null);
+    setThreadSearchOpen(false);
+    setThreadSearch("");
+    setActiveMatchIndex(0);
+    setAttachNotice("");
+  }, [active?.id]);
+
+  useEffect(() => {
+    if (!threadSearchOpen) return;
+    window.setTimeout(() => threadSearchInputRef.current?.focus(), 40);
+  }, [threadSearchOpen]);
+
+  useEffect(() => {
+    setActiveMatchIndex(matchIds.length > 0 ? matchIds.length - 1 : 0);
+  }, [searchQuery, matchIds.length]);
+
+  useEffect(() => {
+    if (!threadSearchOpen || !searchQuery || matchIds.length === 0) return;
+    const safeIndex = Math.min(activeMatchIndex, matchIds.length - 1);
+    const id = matchIds[safeIndex];
+    if (!id) return;
+    const el = threadRef.current?.querySelector(
+      `[data-msg-id="${id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`,
+    );
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeMatchIndex, matchIds, threadSearchOpen, searchQuery]);
+
+  const goPrevMatch = useCallback(() => {
+    if (matchIds.length === 0) return;
+    setActiveMatchIndex((i) => (i <= 0 ? matchIds.length - 1 : i - 1));
+  }, [matchIds.length]);
+
+  const goNextMatch = useCallback(() => {
+    if (matchIds.length === 0) return;
+    setActiveMatchIndex((i) => (i >= matchIds.length - 1 ? 0 : i + 1));
+  }, [matchIds.length]);
+
+  const closeThreadSearch = useCallback(() => {
+    setThreadSearchOpen(false);
+    setThreadSearch("");
+    setActiveMatchIndex(0);
+  }, []);
+
+  useEffect(() => {
+    activeIdRef.current = active?.id ?? null;
+  }, [active?.id]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    sendingRef.current = sending;
+  }, [sending]);
+
+  const { scrollToBottom: scrollThreadToBottom } = useChatThreadLenis(
+    threadRef,
+    Boolean(active?.id),
+    active?.id,
+  );
+
+  const {
+    nearBottom,
+    unseenCount,
+    showJump,
+    jumpToLatest,
+  } = useChatThreadScroll(threadRef, active?.messages?.length || 0, {
+    enabled: Boolean(active?.id),
+    resetKey: active?.id,
+  });
+
+  useEffect(() => {
+    if (!nearBottom) return;
+    scrollThreadToBottom(true);
+  }, [
+    active?.id,
+    active?.messages?.length,
+    chatEndedBy,
+    peerTyping,
+    nearBottom,
+    scrollThreadToBottom,
+  ]);
+
+  useEffect(() => {
+    const id = active?.id;
+    if (!id) return;
+    const saved = readChatDraft(id);
+    setDraft(saved);
+    draftRef.current = saved;
+  }, [active?.id]);
+
+  const emitTyping = useCallback((typing: boolean) => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+    if (amTypingRef.current === typing) return;
+    amTypingRef.current = typing;
+    getSocket().emit("chat:typing", { sessionId, typing });
+  }, []);
+
+  const onDraftChange = (value: string) => {
+    setDraft(value);
+    draftRef.current = value;
+    const sid = activeIdRef.current;
+    if (sid) writeChatDraft(sid, value);
+    if (chatEndedBy) return;
+    if (value.trim()) {
+      emitTyping(true);
+      if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+      typingIdleRef.current = setTimeout(() => emitTyping(false), 1400);
+    } else {
+      if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+      emitTyping(false);
+    }
+  };
+
+  useEffect(() => {
+    setHeaderMenuOpen(false);
+  }, [active?.id, chatEndedBy]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchOwnTailorShop()
+      .then((shop) => {
+        if (cancelled || !shop) return;
+        const name =
+          locale === "ar"
+            ? shop.nameAr || shop.name
+            : shop.name || shop.nameAr;
+        setStoreName(name || "");
+        setAllowLiveChatAudioCalls(Boolean(shop.allowLiveChatAudioCalls));
+      })
+      .catch(() => {
+        /* empty-state sign is optional */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
+
+  const audioCall = useTailorAudioCall();
+
+  useEffect(() => {
+    audioCall.setViewingSessionId(active?.id ?? null);
+  }, [active?.id, audioCall.setViewingSessionId]);
+
+  // Tell tailor shell when a conversation fills the mobile viewport (hide hamburger).
+  useEffect(() => {
+    const open = Boolean(active);
+    window.dispatchEvent(
+      new CustomEvent(TAILOR_MESSAGES_FOCUS_EVENT, { detail: { open } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent(TAILOR_MESSAGES_FOCUS_EVENT, {
+          detail: { open: false },
+        }),
+      );
+    };
+  }, [active]);
+
+  useEffect(() => {
+    const can =
+      allowLiveChatAudioCalls &&
+      Boolean(active?.id) &&
+      active?.status === "active" &&
+      !chatEndedBy &&
+      connected;
+    const onCallThread =
+      !audioCall.callSessionId || active?.id === audioCall.callSessionId;
+    audioCall.setDialTarget({
+      sessionId: active?.id ?? null,
+      canDial: can,
+      ...(onCallThread
+        ? {
+            peer: {
+              name: active?.customer?.name || null,
+              profilePic: active?.customer?.profilePic || null,
+            },
+          }
+        : {}),
+    });
+  }, [
+    active?.id,
+    active?.status,
+    active?.customer?.name,
+    active?.customer?.profilePic,
+    allowLiveChatAudioCalls,
+    audioCall.callSessionId,
+    audioCall.setDialTarget,
+    chatEndedBy,
+    connected,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      audioCall.setViewingSessionId(null);
+      audioCall.setDialTarget({ sessionId: null, canDial: false });
+    };
+  }, [audioCall.setDialTarget, audioCall.setViewingSessionId]);
+
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!headerMenuRef.current?.contains(e.target as Node)) {
+        setHeaderMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [headerMenuOpen]);
+
+  const refreshInbox = useCallback(async () => {
+    try {
+      const res = await emitWithAck<AckResult>("inbox:list");
+      if (res?.ok && Array.isArray(res.sessions)) {
+        setSessions(res.sessions);
+        setError("");
+        return;
+      }
+      if (res?.error === "forbidden") {
+        setError("Staff access required for live chat.");
+        return;
+      }
+      setError("Could not load inbox.");
+    } catch {
+      setError("Could not load inbox.");
+    }
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    let alive = true;
+    const effectId = Symbol("support-chat");
+    socket.__supportChatEffect = effectId;
+
+    const onConnect = () => {
+      if (!alive) return;
+      setConnected(true);
+      setError("");
+      void refreshInbox();
+    };
+    const onDisconnect = () => {
+      if (!alive) return;
+      setConnected(false);
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    if (socket.connected) onConnect();
+    else socket.connect();
+
+    return () => {
+      alive = false;
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      window.setTimeout(() => {
+        releaseSupportChatSocket(effectId);
+      }, 400);
+    };
+  }, [refreshInbox]);
+
+  const onInboxUpdated = useCallback((list: LiveSessionSummary[]) => {
+    if (!Array.isArray(list)) return;
+    setSessions(list);
+    // Keep open thread avatar in sync when inbox backfills profilePic.
+    setActive((prev) => {
+      if (!prev) return prev;
+      const row = list.find((s) => s.id === prev.id);
+      if (!row?.customer) return prev;
+      const nextPic = row.customer.profilePic || "";
+      const curPic = prev.customer?.profilePic || "";
+      if (!nextPic || nextPic === curPic) return prev;
+      return {
+        ...prev,
+        customer: { ...prev.customer, ...row.customer },
+      };
+    });
+  }, []);
+
+  const markCustomerMessagesRead = useCallback((sessionId: string) => {
+    const socket = getSocket();
+    if (!socket.connected) return;
+    socket.emit("chat:read", { sessionId });
+  }, []);
+
+  const onMessage = useCallback(
+    (payload: { sessionId: string; message: ChatMessage }) => {
+      if (payload.sessionId !== activeIdRef.current) return;
+      setPeerTyping(false);
+      setActive((prev) => {
+        if (!prev || prev.id !== payload.sessionId) return prev;
+        if (prev.messages.some((m) => m.id === payload.message.id)) return prev;
+        return { ...prev, messages: [...prev.messages, payload.message] };
+      });
+
+      // Customer message arrived while this thread is open → delivered + read.
+      if (payload.message.role === "customer") {
+        const socket = getSocket();
+        socket.emit("chat:delivered", {
+          sessionId: payload.sessionId,
+          messageId: payload.message.id,
+        });
+        socket.emit("chat:read", { sessionId: payload.sessionId });
+      }
+    },
+    [],
+  );
+
+  const onTyping = useCallback(
+    (payload: {
+      sessionId: string;
+      typing: boolean;
+      from?: "agent" | "customer";
+    }) => {
+      if (payload.sessionId !== activeIdRef.current) return;
+      if (payload.from && payload.from !== "customer") return;
+      setPeerTyping(Boolean(payload.typing));
+    },
+    [],
+  );
+
+  const onStatus = useCallback(
+    (payload: {
+      sessionId: string;
+      messages: { id: string; status: MessageDeliveryStatus }[];
+    }) => {
+      if (!payload?.messages?.length) return;
+      const map = new Map(payload.messages.map((m) => [m.id, m.status]));
+
+      // Update open thread bubbles.
+      if (payload.sessionId === activeIdRef.current) {
+        setActive((prev) => {
+          if (!prev || prev.id !== payload.sessionId) return prev;
+          return {
+            ...prev,
+            messages: prev.messages.map((m) =>
+              map.has(m.id) ? { ...m, status: map.get(m.id) } : m,
+            ),
+          };
+        });
+        // Drop edit mode if the message was just read by the peer.
+        setEditingId((id) => {
+          if (!id || map.get(id) !== "read") return id;
+          setDraft("");
+          draftRef.current = "";
+          return null;
+        });
+      }
+
+      // Update inbox row ticks when the preview message status changes.
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== payload.sessionId || !s.preview) return s;
+          const nextStatus = map.get(s.preview.id);
+          if (!nextStatus || s.preview.status === nextStatus) return s;
+          return {
+            ...s,
+            preview: { ...s.preview, status: nextStatus },
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const onEnded = useCallback(
+    (payload: {
+      sessionId: string;
+      endedBy?: "customer" | "agent";
+      blocked?: boolean;
+      session?: LiveSession;
+    }) => {
+      const who = payload.endedBy === "agent" ? "agent" : "customer";
+      const blocked = Boolean(
+        payload.blocked || payload.session?.customerBlocked,
+      );
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === payload.sessionId
+            ? {
+                ...s,
+                ...(payload.session || {}),
+                status: "ended",
+                endedBy: who,
+                customerBlocked: blocked || s.customerBlocked,
+              }
+            : s,
+        ),
+      );
+      if (activeIdRef.current !== payload.sessionId) return;
+      setPeerTyping(false);
+      emitTyping(false);
+      endingRef.current = false;
+      setChatEndedBy(who);
+      if (payload.session) {
+        setActive({
+          ...payload.session,
+          status: "ended",
+          endedBy: who,
+          customerBlocked: blocked || payload.session.customerBlocked,
+        });
+      } else {
+        setActive((prev) =>
+          prev && prev.id === payload.sessionId
+            ? {
+                ...prev,
+                status: "ended",
+                endedBy: who,
+                customerBlocked: blocked || prev.customerBlocked,
+              }
+            : prev,
+        );
+      }
+      setDraft("");
+      draftRef.current = "";
+    },
+    [emitTyping],
+  );
+
+  const onRestarted = useCallback((payload: { session: LiveSession }) => {
+    if (!payload?.session) return;
+    if (
+      activeIdRef.current &&
+      payload.session.id !== activeIdRef.current
+    ) {
+      return;
+    }
+    activeIdRef.current = payload.session.id;
+    endingRef.current = false;
+    setActive(payload.session);
+    setChatEndedBy(null);
+    setRestarting(false);
+    setPeerTyping(false);
+    setSessions((prev) => {
+      const others = prev.filter((s) => s.id !== payload.session.id);
+      return [
+        {
+          id: payload.session.id,
+          customer: payload.session.customer,
+          agent: payload.session.agent,
+          status: payload.session.status,
+          locale: payload.session.locale,
+          messageCount: payload.session.messages?.length || 0,
+          unreadCount: 0,
+          lastActivityAt: payload.session.lastActivityAt,
+          endedBy: null,
+          preview:
+            payload.session.messages?.[payload.session.messages.length - 1] ||
+            null,
+        },
+        ...others,
+      ];
+    });
+  }, []);
+
+  const onClosed = useCallback((payload: { sessionId: string }) => {
+    setSessions((prev) => prev.filter((s) => s.id !== payload.sessionId));
+    if (activeIdRef.current !== payload.sessionId) return;
+    setActive(null);
+    setChatEndedBy(null);
+    setDraft("");
+    draftRef.current = "";
+    activeIdRef.current = null;
+  }, []);
+
+  const onCleared = useCallback((payload: { sessionId: string }) => {
+    if (activeIdRef.current !== payload.sessionId) return;
+    setActive((prev) =>
+      prev && prev.id === payload.sessionId
+        ? { ...prev, messages: [] }
+        : prev,
+    );
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const onMessagesDeleted = useCallback(
+    (payload: {
+      sessionId: string;
+      messageIds?: string[];
+      deletedBy?: "customer" | "agent";
+      session?: LiveSession;
+    }) => {
+      if (activeIdRef.current !== payload.sessionId) return;
+      if (payload.session) {
+        setActive(payload.session);
+      } else if (payload.messageIds?.length) {
+        const removed = new Set(payload.messageIds);
+        const by = payload.deletedBy === "customer" ? "customer" : "agent";
+        setActive((prev) =>
+          prev && prev.id === payload.sessionId
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  removed.has(m.id)
+                    ? {
+                        ...m,
+                        kind: "text",
+                        text: "",
+                        caption: undefined,
+                        audio: undefined,
+                        data: undefined,
+                        deleted: true,
+                        deletedBy: by,
+                      }
+                    : m,
+                ),
+              }
+            : prev,
+        );
+      }
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      setConfirmAction(null);
+    },
+    [],
+  );
+
+  const onMessagesHidden = useCallback(
+    (payload: { sessionId: string; messageIds?: string[] }) => {
+      if (activeIdRef.current !== payload.sessionId) return;
+      if (!payload.messageIds?.length) return;
+      const hidden = new Set(payload.messageIds);
+      setActive((prev) =>
+        prev && prev.id === payload.sessionId
+          ? {
+              ...prev,
+              messages: prev.messages.filter((m) => !hidden.has(m.id)),
+            }
+          : prev,
+      );
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      setConfirmAction(null);
+    },
+    [],
+  );
+
+  const onMessageEdited = useCallback(
+    (payload: { sessionId: string; message?: ChatMessage }) => {
+      if (activeIdRef.current !== payload.sessionId || !payload.message) return;
+      const next = payload.message;
+      setActive((prev) =>
+        prev && prev.id === payload.sessionId
+          ? {
+              ...prev,
+              messages: prev.messages.some((m) => m.id === next.id)
+                ? prev.messages.map((m) =>
+                    m.id === next.id ? { ...m, ...next } : m,
+                  )
+                : [...prev.messages, next],
+            }
+          : prev,
+      );
+      setEditingId((id) => (id === next.id ? null : id));
+    },
+    [],
+  );
+
+  useSocketEvent("inbox:updated", onInboxUpdated);
+  useSocketEvent("chat:message", onMessage);
+  useSocketEvent("chat:typing", onTyping);
+  useSocketEvent("chat:status", onStatus);
+  useSocketEvent("chat:ended", onEnded);
+  useSocketEvent("chat:restarted", onRestarted);
+  useSocketEvent("chat:closed", onClosed);
+  useSocketEvent("chat:cleared", onCleared);
+  useSocketEvent("chat:messages-deleted", onMessagesDeleted);
+  useSocketEvent("chat:messages-hidden", onMessagesHidden);
+  useSocketEvent("chat:message-edited", onMessageEdited);
+
+  const onPresence = useCallback(
+    (payload: {
+      sessionId: string;
+      customerOnline?: boolean;
+      customerLastSeenAt?: number | null;
+    }) => {
+      const sid = String(payload.sessionId || "");
+      if (!sid) return;
+      const online = Boolean(payload.customerOnline);
+      const lastSeenAt =
+        payload.customerLastSeenAt == null
+          ? null
+          : Number(payload.customerLastSeenAt) || null;
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === sid
+            ? { ...s, customerOnline: online, customerLastSeenAt: lastSeenAt }
+            : s,
+        ),
+      );
+      setActive((prev) =>
+        prev && prev.id === sid
+          ? {
+              ...prev,
+              customerOnline: online,
+              customerLastSeenAt: lastSeenAt,
+            }
+          : prev,
+      );
+    },
+    [],
+  );
+  useSocketEvent("chat:presence", onPresence);
+
+  const onMessageReacted = useCallback(
+    (payload: { sessionId: string; message?: ChatMessage }) => {
+      if (activeIdRef.current !== payload.sessionId || !payload.message) return;
+      const next = payload.message;
+      setActive((prev) =>
+        prev && prev.id === payload.sessionId
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === next.id
+                  ? { ...m, reactions: next.reactions || [] }
+                  : m,
+              ),
+            }
+          : prev,
+      );
+    },
+    [],
+  );
+  useSocketEvent("chat:message-reacted", onMessageReacted);
+
+  const mergePinnedMessages = useCallback((updates: ChatMessage[]) => {
+    if (!updates.length) return;
+    setActive((prev) => {
+      if (!prev) return prev;
+      const byId = new Map(updates.map((m) => [m.id, m]));
+      return {
+        ...prev,
+        messages: prev.messages.map((m) => {
+          const next = byId.get(m.id);
+          if (!next) return m;
+          return {
+            ...m,
+            pinnedAt: next.pinnedAt ?? null,
+            pinnedBy: next.pinnedBy ?? null,
+          };
+        }),
+      };
+    });
+  }, []);
+
+  const onMessagePinned = useCallback(
+    (payload: {
+      sessionId: string;
+      message?: ChatMessage;
+      messages?: ChatMessage[];
+    }) => {
+      if (activeIdRef.current !== payload.sessionId) return;
+      const updates =
+        Array.isArray(payload.messages) && payload.messages.length
+          ? payload.messages
+          : payload.message
+            ? [payload.message]
+            : [];
+      mergePinnedMessages(updates);
+    },
+    [mergePinnedMessages],
+  );
+  useSocketEvent("chat:message-pinned", onMessagePinned);
+
+  const openSession = async (summary: LiveSessionSummary) => {
+    const prevSid = activeIdRef.current;
+    if (prevSid && prevSid !== summary.id) {
+      try {
+        getSocket().emit("chat:away", { sessionId: prevSid });
+      } catch {
+        /* ignore */
+      }
+    }
+    voice.cancel();
+    clearPendingAttachment();
+    setAttachOpen(false);
+    setError("");
+    setChatEndedBy(null);
+    setPeerTyping(false);
+    emitTyping(false);
+    // Optimistic WhatsApp-style clear — server confirms via chat:read + inbox:updated.
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === summary.id ? { ...s, unreadCount: 0 } : s,
+      ),
+    );
+    try {
+      if (summary.status === "waiting") {
+        const res = await emitWithAck<AckResult>("chat:accept", {
+          sessionId: summary.id,
+        });
+        if (!res?.ok || !res.session) {
+          if (res?.error === "already_accepted") {
+            const join = await emitWithAck<AckResult>("chat:join", {
+              sessionId: summary.id,
+            });
+            if (join?.ok && join.session) {
+              activeIdRef.current = join.session.id;
+              setActive(join.session);
+              setChatEndedBy(
+                join.session.status === "ended"
+                  ? join.session.endedBy === "customer"
+                    ? "customer"
+                    : "agent"
+                  : null,
+              );
+              markCustomerMessagesRead(join.session.id);
+              window.setTimeout(() => composerRef.current?.focus(), 80);
+              return;
+            }
+          }
+          setError("Could not accept this chat.");
+          void refreshInbox();
+          return;
+        }
+        activeIdRef.current = res.session.id;
+        setActive(res.session);
+        setChatEndedBy(null);
+        markCustomerMessagesRead(res.session.id);
+        window.setTimeout(() => composerRef.current?.focus(), 80);
+        return;
+      }
+
+      const join = await emitWithAck<AckResult>("chat:join", {
+        sessionId: summary.id,
+      });
+      if (!join?.ok || !join.session) {
+        setError("Could not open this chat.");
+        return;
+      }
+      activeIdRef.current = join.session.id;
+      setActive(join.session);
+      setChatEndedBy(
+        join.session.status === "ended"
+          ? join.session.endedBy === "customer"
+            ? "customer"
+            : "agent"
+          : null,
+      );
+      markCustomerMessagesRead(join.session.id);
+      window.setTimeout(() => composerRef.current?.focus(), 80);
+    } catch {
+      setError("Connection error.");
+    }
+  };
+
+  useEffect(() => {
+    const sid = audioCall.pendingOpenSessionId;
+    if (!sid) return;
+    const row = sessions.find((s) => s.id === sid);
+    if (!row) return;
+    audioCall.clearPendingOpenSessionId();
+    if (activeIdRef.current === sid) return;
+    void openSession(row);
+  }, [
+    audioCall.pendingOpenSessionId,
+    audioCall.clearPendingOpenSessionId,
+    sessions,
+  ]);
+
+  const clearReplyAndEdit = useCallback(() => {
+    setReplyTo(null);
+    setEditingId(null);
+  }, []);
+
+  const reactToChatMessage = useCallback(
+    async (msg: ChatMessage, emoji: ChatReactionEmoji) => {
+      const sid = activeIdRef.current;
+      if (!sid || chatEndedBy || msg.deleted) return;
+      const myRole = "agent" as const;
+      const prevReaction = msg.reactions?.find((r) => r.byRole === myRole)
+        ?.emoji;
+      const nextReactions =
+        prevReaction === emoji
+          ? (msg.reactions || []).filter((r) => r.byRole !== myRole)
+          : [
+              ...(msg.reactions || []).filter((r) => r.byRole !== myRole),
+              { emoji, byRole: myRole, at: new Date().toISOString() },
+            ];
+      setActive((prev) =>
+        prev && prev.id === sid
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === msg.id ? { ...m, reactions: nextReactions } : m,
+              ),
+            }
+          : prev,
+      );
+      try {
+        const res = await emitWithAck<AckResult>("chat:react", {
+          sessionId: sid,
+          messageId: msg.id,
+          emoji,
+        });
+        if (res?.ok && res.message) {
+          setActive((prev) =>
+            prev && prev.id === sid
+              ? {
+                  ...prev,
+                  messages: prev.messages.map((m) =>
+                    m.id === res.message!.id
+                      ? { ...m, reactions: res.message!.reactions || [] }
+                      : m,
+                  ),
+                }
+              : prev,
+          );
+        }
+      } catch {
+        /* reconcile via socket event */
+      }
+    },
+    [chatEndedBy],
+  );
+
+  const flashClearRef = useRef<number | null>(null);
+  const [flashMsgId, setFlashMsgId] = useState<string | null>(null);
+
+  const jumpToMessage = useCallback((id: string) => {
+    const safeId = String(id || "").trim();
+    if (!safeId) return;
+    const el = threadRef.current?.querySelector(
+      `[data-msg-id="${safeId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`,
+    ) as HTMLElement | null;
+    if (!el) {
+      setAttachNotice("Original message is unavailable");
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashMsgId(safeId);
+    if (flashClearRef.current) window.clearTimeout(flashClearRef.current);
+    flashClearRef.current = window.setTimeout(() => {
+      setFlashMsgId(null);
+      flashClearRef.current = null;
+    }, 1600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (flashClearRef.current) window.clearTimeout(flashClearRef.current);
+    };
+  }, []);
+
+  const pinChatMessage = useCallback(
+    async (msg: ChatMessage, pinned: boolean) => {
+      const sid = activeIdRef.current;
+      if (!sid || msg.deleted) return;
+      setActive((prev) =>
+        prev && prev.id === sid
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === msg.id
+                  ? {
+                      ...m,
+                      pinnedAt: pinned ? new Date().toISOString() : null,
+                      pinnedBy: pinned ? "agent" : null,
+                    }
+                  : m,
+              ),
+            }
+          : prev,
+      );
+      try {
+        const res = await emitWithAck<{
+          ok?: boolean;
+          message?: ChatMessage;
+          messages?: ChatMessage[];
+        }>("chat:pin", {
+          sessionId: sid,
+          messageId: msg.id,
+          pinned,
+        });
+        if (res?.ok) {
+          const updates =
+            Array.isArray(res.messages) && res.messages.length
+              ? res.messages
+              : res.message
+                ? [res.message]
+                : [];
+          mergePinnedMessages(updates);
+        }
+      } catch {
+        /* reconcile via socket */
+      }
+    },
+    [mergePinnedMessages],
+  );
+
+  const onMessageMenuAction = useCallback(
+    async (msg: ChatMessage, action: ChatMessageMenuAction, mine: boolean) => {
+      if (action === "reply") {
+        setEditingId(null);
+        setReplyTo({
+          id: msg.id,
+          role: msg.role,
+          kind: msg.kind || "text",
+          text: replyPreviewOf(msg),
+          senderName: msg.senderName,
+        });
+        window.setTimeout(() => composerRef.current?.focus(), 0);
+        return;
+      }
+      if (action === "pin") {
+        void pinChatMessage(msg, true);
+        return;
+      }
+      if (action === "unpin") {
+        void pinChatMessage(msg, false);
+        return;
+      }
+      if (action === "edit") {
+        if (!mine || msg.status === "read") return;
+        setReplyTo(null);
+        setEditingId(msg.id);
+        const next = msg.caption || msg.text || "";
+        setDraft(next);
+        draftRef.current = next;
+        window.setTimeout(() => composerRef.current?.focus(), 0);
+        return;
+      }
+      if (action === "copy") {
+        const text = (msg.caption || msg.text || "").trim();
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopyToast("Copied");
+        } catch {
+          setAttachNotice("Could not copy message.");
+        }
+        return;
+      }
+      if (action === "info") {
+        setInfoMsg(msg);
+        return;
+      }
+      if (action === "select") {
+        setSelectMode(true);
+        setSelectedIds(new Set([msg.id]));
+        return;
+      }
+      if (action === "forward") {
+        if (msg.deleted || msg.kind === "call") return;
+        setForwardMsg(msg);
+        return;
+      }
+      if (action === "delete") {
+        setSelectedIds(new Set([msg.id]));
+        setConfirmAction("deleteForMe");
+      }
+    },
+    [pinChatMessage],
+  );
+
+  const forwardTargets = useMemo(
+    () =>
+      sessions
+        .filter(
+          (s) =>
+            s.id !== activeIdRef.current &&
+            s.status === "active" &&
+            !s.customerBlocked,
+        )
+        .map((s) => ({
+          id: s.id,
+          name: s.customer?.name || "Visitor",
+          profilePic: s.customer?.profilePic,
+          status: s.status,
+          preview:
+            s.preview?.kind === "voice"
+              ? "Voice message"
+              : s.preview?.kind === "image"
+                ? "Photo"
+                : s.preview?.kind === "file"
+                  ? s.preview.fileName || "Document"
+                  : s.preview?.text || undefined,
+        })),
+    [sessions, active?.id],
+  );
+
+  const runForwardTo = async (targetSessionId: string) => {
+    if (!forwardMsg || forwarding) return;
+    setForwarding(true);
+    const res = await forwardChatMessage(targetSessionId, forwardMsg);
+    setForwarding(false);
+    if (!res.ok) {
+      setAttachNotice(
+        res.error === "not_active" || res.error === "chat_ended"
+          ? "That chat can’t receive messages right now."
+          : "Could not forward this message.",
+      );
+      return;
+    }
+    setForwardMsg(null);
+    setCopyToast("Forwarded");
+  };
+
+  const sendMessage = useCallback(async () => {
+    const sessionId = activeIdRef.current;
+    const text = draftRef.current.trim();
+    const attachment = pendingAttachmentRef.current;
+    if (
+      !sessionId ||
+      sendingRef.current ||
+      (!text && !attachment) ||
+      chatEndedBy ||
+      voice.recording ||
+      attachStatus === "preparing"
+    ) {
+      return;
+    }
+
+    if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+    emitTyping(false);
+
+    sendingRef.current = true;
+    setSending(true);
+    setDraft("");
+    draftRef.current = "";
+    clearChatDraft(sessionId);
+    if (attachment) {
+      setAttachStatus("sending");
+      setAttachProgress(null);
+    }
+    const replyToId = replyTo?.id;
+    const editId = editingId;
+    setReplyTo(null);
+    setEditingId(null);
+
+    try {
+      if (editId) {
+        const res = await emitWithAck<AckResult>("chat:edit", {
+          sessionId,
+          messageId: editId,
+          text,
+        });
+        if (!res?.ok) {
+          setDraft(text);
+          draftRef.current = text;
+          writeChatDraft(sessionId, text);
+          setEditingId(editId);
+        } else {
+          window.setTimeout(() => composerRef.current?.focus(), 0);
+        }
+        return;
+      }
+      const res = await emitWithAck<AckResult>(
+        "chat:send",
+        attachment
+          ? {
+              sessionId,
+              kind: attachment.kind,
+              text,
+              data: attachment.data,
+              fileName: attachment.fileName,
+              mimeType: attachment.mimeType,
+              fileSize: attachment.fileSize,
+              replyToId,
+            }
+          : { sessionId, text, replyToId },
+      );
+      if (!res?.ok) {
+        setDraft(text);
+        draftRef.current = text;
+        writeChatDraft(sessionId, text);
+        if (attachment) {
+          pendingAttachmentRef.current = attachment;
+          setPendingAttachment(attachment);
+          setAttachStatus("failed");
+          setAttachNotice(
+            res.error === "rate_limited"
+              ? "Sending too fast. Wait a moment, then tap Retry."
+              : "Could not send the attachment. Tap Retry.",
+          );
+        } else if (res.error === "rate_limited") {
+          setAttachNotice("Sending too fast. Wait a moment and try again.");
+        }
+      } else {
+        if (attachment) clearPendingAttachment();
+        window.setTimeout(() => composerRef.current?.focus(), 0);
+      }
+    } catch {
+      setDraft(text);
+      draftRef.current = text;
+      writeChatDraft(sessionId, text);
+      if (editId) setEditingId(editId);
+      if (attachment) {
+        pendingAttachmentRef.current = attachment;
+        setPendingAttachment(attachment);
+        setAttachStatus("failed");
+        setAttachNotice("Could not send the attachment. Tap Retry.");
+      }
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
+  }, [
+    attachStatus,
+    chatEndedBy,
+    clearPendingAttachment,
+    editingId,
+    emitTyping,
+    replyTo?.id,
+    voice.recording,
+  ]);
+
+  const startVoiceNote = useCallback(async () => {
+    if (
+      !activeIdRef.current ||
+      sendingRef.current ||
+      voice.recording ||
+      chatEndedBy ||
+      draftRef.current.trim()
+    ) {
+      return;
+    }
+    if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+    emitTyping(false);
+    const result = await voice.start();
+    if (result === "mic_denied") {
+      setAttachNotice("Please allow microphone access to send voice notes.");
+    }
+  }, [chatEndedBy, emitTyping, voice.recording, voice.start]);
+
+  const cancelVoiceNote = useCallback(() => {
+    voice.cancel();
+  }, [voice.cancel]);
+
+  const sendVoiceNote = useCallback(async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId || sendingRef.current || chatEndedBy) return;
+    const attachment = pendingAttachmentRef.current;
+
+    sendingRef.current = true;
+    setSending(true);
+    try {
+      const clip = await voice.stop();
+      if (!clip) return;
+      clearPendingAttachment();
+      const res = await emitWithAck<AckResult>("chat:send", {
+        sessionId,
+        kind: "voice",
+        audio: clip.audio,
+        durationMs: clip.durationMs,
+        ...(attachment
+          ? {
+              attachmentKind: attachment.kind,
+              data: attachment.data,
+              fileName: attachment.fileName,
+              mimeType: attachment.mimeType,
+              fileSize: attachment.fileSize,
+            }
+          : {}),
+      });
+      if (!res?.ok && attachment) {
+        pendingAttachmentRef.current = attachment;
+        setPendingAttachment(attachment);
+        setAttachStatus("ready");
+      }
+    } catch {
+      if (attachment) {
+        pendingAttachmentRef.current = attachment;
+        setPendingAttachment(attachment);
+        setAttachStatus("ready");
+      }
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
+  }, [chatEndedBy, clearPendingAttachment, voice.stop]);
+
+  const stageAttachment = useCallback(
+    async (file: File, kind: ChatAttachKind) => {
+      const sessionId = activeIdRef.current;
+      if (!sessionId || sendingRef.current || chatEndedBy || voice.recording) {
+        return;
+      }
+      const fileName = (file.name || "file")
+        .replace(/[\\/:*?"<>|]/g, "_")
+        .slice(0, 120);
+      const previewUrl =
+        kind === "image" ? URL.createObjectURL(file) : "";
+      const stub: PreparedChatAttachment = {
+        kind: kind === "image" ? "image" : "file",
+        fileName,
+        mimeType: file.type || "",
+        fileSize: file.size,
+        data: previewUrl,
+      };
+      pendingAttachmentRef.current = null;
+      setPendingAttachment(stub);
+      setAttachStatus("preparing");
+      setAttachProgress(0);
+      setAttachOpen(false);
+      setAttachNotice("");
+      const prepared = await prepareChatAttachment(file, kind, (pct) => {
+        setAttachProgress(pct);
+      });
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (!prepared.ok) {
+        clearPendingAttachment();
+        setAttachNotice(
+          attachmentErrorMessage(prepared.error, false, {
+            kind,
+            fileName: file.name,
+          }),
+        );
+        return;
+      }
+      pendingAttachmentRef.current = prepared.attachment;
+      setPendingAttachment(prepared.attachment);
+      setAttachStatus("ready");
+      setAttachProgress(null);
+      window.setTimeout(() => composerRef.current?.focus(), 0);
+    },
+    [chatEndedBy, clearPendingAttachment, voice.recording],
+  );
+
+  const onAttachFileChange = (
+    e: ChangeEvent<HTMLInputElement>,
+    kind: ChatAttachKind,
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    void stageAttachment(file, kind);
+  };
+
+  const onAttachMenuPick = (action: ChatAttachMenuAction) => {
+    if (action === "document") fileInputRef.current?.click();
+    else if (action === "photos") imageInputRef.current?.click();
+    else if (action === "video") videoInputRef.current?.click();
+    else if (action === "audio") audioInputRef.current?.click();
+  };
+
+  /** Leave the open conversation pane only — session stays live in the inbox. */
+  const closeChatWindow = () => {
+    const sid = activeIdRef.current;
+    if (sid) {
+      try {
+        getSocket().emit("chat:away", { sessionId: sid });
+      } catch {
+        /* ignore */
+      }
+    }
+    voice.cancel();
+    clearPendingAttachment();
+    setAttachNotice("");
+    setAttachOpen(false);
+    setHeaderMenuOpen(false);
+    endingRef.current = false;
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setHeaderPanel(null);
+    setConfirmAction(null);
+    setForwardMsg(null);
+    setPeerTyping(false);
+    emitTyping(false);
+    setActive(null);
+    setDraft("");
+    draftRef.current = "";
+    setChatEndedBy(null);
+    activeIdRef.current = null;
+  };
+
+  // Esc closes overlays first, then the open chat window (same as Close chat).
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      if (confirmAction) {
+        setConfirmAction(null);
+        return;
+      }
+      if (headerPanel) {
+        setHeaderPanel(null);
+        return;
+      }
+      if (headerMenuOpen) {
+        setHeaderMenuOpen(false);
+        return;
+      }
+      if (emojiOpen) {
+        setEmojiOpen(false);
+        return;
+      }
+      if (attachOpen) {
+        setAttachOpen(false);
+        return;
+      }
+      if (selectMode) {
+        setSelectMode(false);
+        setSelectedIds(new Set());
+        return;
+      }
+      if (threadSearchOpen) {
+        setThreadSearchOpen(false);
+        setThreadSearch("");
+        return;
+      }
+      closeChatWindow();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [
+    active,
+    confirmAction,
+    headerPanel,
+    headerMenuOpen,
+    attachOpen,
+    emojiOpen,
+    selectMode,
+    threadSearchOpen,
+  ]);
+
+  const toggleSelectMessage = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearChatMessages = async () => {
+    const sessionId = active?.id || activeIdRef.current;
+    if (!sessionId) return;
+    try {
+      const res = await emitWithAck<AckResult>("chat:clear", { sessionId });
+      if (!res?.ok) {
+        setError("Could not clear this chat.");
+        return;
+      }
+      setActive((prev) =>
+        prev && prev.id === sessionId ? { ...prev, messages: [] } : prev,
+      );
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      setConfirmAction(null);
+      void refreshInbox();
+    } catch {
+      setError("Could not clear this chat. Check your connection.");
+    }
+  };
+
+  const selectedHasOthers = [...selectedIds].some((id) => {
+    const msg = active?.messages?.find((m) => m.id === id);
+    return Boolean(msg && msg.role !== "agent");
+  });
+
+  const requestDeleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    if (selectedHasOthers) {
+      setConfirmAction("deleteForMe");
+      return;
+    }
+    void runDeleteSelected();
+  };
+
+  const runDeleteSelected = async () => {
+    const sessionId = active?.id || activeIdRef.current;
+    if (!sessionId || selectedIds.size === 0) return;
+    const ids = [...selectedIds];
+    setConfirmAction(null);
+    try {
+      const res = await emitWithAck<
+        AckResult & { mineIds?: string[]; otherIds?: string[] }
+      >("chat:delete-messages", {
+        sessionId,
+        messageIds: ids,
+      });
+      if (!res?.ok) {
+        setError("Could not delete messages.");
+        return;
+      }
+      if (res.session) {
+        setActive(res.session);
+      } else {
+        const mine = new Set(res.mineIds || []);
+        const others = new Set(res.otherIds || []);
+        setActive((prev) =>
+          prev && prev.id === sessionId
+            ? {
+                ...prev,
+                messages: prev.messages
+                  .filter((m) => !others.has(m.id))
+                  .map((m) =>
+                    mine.has(m.id)
+                      ? {
+                          ...m,
+                          kind: "text" as const,
+                          text: "",
+                          caption: undefined,
+                          audio: undefined,
+                          data: undefined,
+                          deleted: true,
+                          deletedBy: "agent" as const,
+                        }
+                      : m,
+                  ),
+              }
+            : prev,
+        );
+      }
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      void refreshInbox();
+    } catch {
+      setError("Could not delete messages. Check your connection.");
+    }
+  };
+
+  const runConfirmAction = () => {
+    if (confirmAction === "clear" || confirmAction === "deleteAll") {
+      void clearChatMessages();
+    } else if (confirmAction === "deleteForMe") {
+      void runDeleteSelected();
+    } else if (confirmAction === "end") {
+      setConfirmAction(null);
+      void endActiveChat();
+    } else if (confirmAction === "block") {
+      setConfirmAction(null);
+      void blockActiveCustomer();
+    } else if (confirmAction === "unblock") {
+      setConfirmAction(null);
+      void unblockActiveCustomer();
+    }
+  };
+
+  const restartChat = async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId || !chatEndedBy || restarting) return;
+    setRestarting(true);
+    try {
+      const res = await emitWithAck<AckResult>("chat:restart", { sessionId });
+      if (!res?.ok || !res.session) {
+        setRestarting(false);
+        return;
+      }
+      onRestarted({ session: res.session });
+    } catch {
+      setRestarting(false);
+    }
+  };
+
+  const endActiveChat = async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId || chatEndedBy) return;
+    try {
+      const res = await emitWithAck<{ ok?: boolean; endedBy?: string }>(
+        "chat:end",
+        { sessionId },
+      );
+      if (!res?.ok) return;
+      onEnded({
+        sessionId,
+        endedBy: res.endedBy === "customer" ? "customer" : "agent",
+      });
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const applyCustomerBlocked = useCallback(
+    (sessionId: string, blocked: boolean, session?: LiveSession | null) => {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === sessionId
+            ? {
+                ...s,
+                customerBlocked: blocked,
+                status: blocked ? "ended" : s.status,
+                endedBy: blocked ? s.endedBy || "agent" : s.endedBy,
+              }
+            : s,
+        ),
+      );
+      if (activeIdRef.current !== sessionId) return;
+      if (session) {
+        setActive(session);
+        if (blocked || session.status === "ended") {
+          setChatEndedBy(session.endedBy === "customer" ? "customer" : "agent");
+        }
+        return;
+      }
+      setActive((prev) =>
+        prev && prev.id === sessionId
+          ? {
+              ...prev,
+              customerBlocked: blocked,
+              status: blocked ? "ended" : prev.status,
+              endedBy: blocked
+                ? prev.endedBy || "agent"
+                : prev.endedBy,
+            }
+          : prev,
+      );
+      if (blocked) setChatEndedBy((who) => who || "agent");
+    },
+    [],
+  );
+
+  const blockActiveCustomer = async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+    try {
+      const res = await emitWithAck<{
+        ok?: boolean;
+        session?: LiveSession;
+      }>("chat:block", { sessionId });
+      if (!res?.ok) return;
+      applyCustomerBlocked(sessionId, true, res.session || null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const unblockActiveCustomer = async () => {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+    try {
+      const res = await emitWithAck<{
+        ok?: boolean;
+        session?: LiveSession;
+      }>("chat:unblock", { sessionId });
+      if (!res?.ok) return;
+      applyCustomerBlocked(sessionId, false, res.session || null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onBlocked = useCallback(
+    (payload: {
+      sessionId: string;
+      blocked?: boolean;
+      session?: LiveSession;
+    }) => {
+      applyCustomerBlocked(
+        payload.sessionId,
+        Boolean(payload.blocked),
+        payload.session || null,
+      );
+    },
+    [applyCustomerBlocked],
+  );
+
+  useSocketEvent("chat:blocked", onBlocked);
+
+  const onComposerKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void sendMessage();
+  };
+
+  const onComposerSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void sendMessage();
+  };
+
+  const onResizePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const split = splitRef.current;
+    if (!split) return;
+
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    setResizing(true);
+
+    const onMove = (ev: PointerEvent) => {
+      const rect = split.getBoundingClientRect();
+      const maxForPane = Math.min(INBOX_MAX, Math.floor(rect.width * 0.55));
+      const next = Math.min(
+        maxForPane,
+        Math.max(INBOX_MIN, ev.clientX - rect.left),
+      );
+      setInboxWidth(Math.round(next));
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      handle.releasePointerCapture(ev.pointerId);
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      setResizing(false);
+      setInboxWidth((w) => {
+        try {
+          localStorage.setItem(INBOX_WIDTH_KEY, String(w));
+        } catch {
+          // ignore
+        }
+        return w;
+      });
+    };
+
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  };
+
+  const waitingCount = sessions.filter((s) => s.status === "waiting").length;
+  const activeCount = sessions.filter((s) => s.status === "active").length;
+  const endedCount = sessions.filter((s) => s.status === "ended").length;
+
+  const filteredSessions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return sessions
+      .filter((s) => {
+        if (filter === "waiting" && s.status !== "waiting") return false;
+        if (filter === "active" && s.status !== "active") return false;
+        if (filter === "ended" && s.status !== "ended") return false;
+        if (!q) return true;
+        const hay = [
+          s.customer?.name,
+          s.customer?.email,
+          s.customer?.kind,
+          s.preview?.text,
+          s.agent?.name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          const rank = { waiting: 0, active: 1, ended: 2 } as const;
+          return (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+        }
+        return b.lastActivityAt - a.lastActivityAt;
+      });
+  }, [sessions, filter, search]);
+
+  const filters: { id: InboxFilter; label: string; count?: number }[] = [
+    { id: "all", label: "All", count: sessions.length },
+    { id: "waiting", label: "Waiting", count: waitingCount },
+    { id: "active", label: "Active", count: activeCount },
+    { id: "ended", label: "Ended", count: endedCount },
+  ];
+
+  return (
+    <div
+      ref={splitRef}
+      className={`relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#F7F5F0] lg:flex-row ${
+        resizing ? "select-none" : ""
+      }`}
+    >
+      {/* Inbox column — WhatsApp-style: full screen on mobile until a chat opens */}
+      <aside
+        className={`${
+          active ? "hidden" : "flex"
+        } min-h-0 w-full flex-1 flex-col border-r border-[#E8E8E4] bg-white lg:flex lg:h-full lg:w-[var(--inbox-w)] lg:flex-none lg:shrink-0`}
+        style={{ "--inbox-w": `${inboxWidth}px` } as CSSProperties}
+      >
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[#E8E8E4] bg-[#FFFDF9] py-2.5 pe-3 ps-14 pt-[max(0.625rem,env(safe-area-inset-top))] sm:py-3 sm:pe-4 lg:px-4 lg:pt-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-[17px] font-light tracking-tight text-black [font-family:var(--font-display)] sm:text-[20px]">
+              Tailor messages
+            </h1>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#8A8A80] [font-family:var(--font-body)] sm:text-[12px]">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  connected ? "bg-emerald-500" : "bg-gray-400"
+                }`}
+              />
+              {connected ? "You're online" : "Connecting…"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void refreshInbox()}
+            title="Refresh inbox"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-black/60 transition hover:bg-black/5 hover:cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </header>
+
+        <div className="shrink-0 border-b border-[#E8E8E4] bg-white px-3 pb-2 pt-2">
+          <label className="flex items-center gap-3 rounded-full border border-[#E8E8E4] bg-[#F7F5F0] px-3 py-2">
+            <Search className="h-4 w-4 shrink-0 text-[#8A8A80]" strokeWidth={1.75} />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search chats"
+              className="min-w-0 flex-1 bg-transparent text-[14px] text-black outline-none placeholder:text-[#8A8A80] [font-family:var(--font-body)]"
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="text-[#8A8A80] hover:cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2} />
+              </button>
+            ) : null}
+          </label>
+
+          <div className="@container mt-2 w-full min-w-0">
+            <div className="flex w-full min-w-0 gap-1 @[300px]:gap-1.5 @[360px]:gap-2">
+              {filters.map((f) => {
+                const on = filter === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFilter(f.id)}
+                    title={
+                      typeof f.count === "number"
+                        ? `${f.label} (${f.count})`
+                        : f.label
+                    }
+                    className={`min-w-0 flex-1 basis-0 rounded-full px-1 py-1 text-[10px] leading-tight transition hover:cursor-pointer [font-family:var(--font-body)] @[300px]:px-1.5 @[300px]:text-[11px] @[360px]:px-3 @[360px]:py-1.5 @[360px]:text-[13px] @[360px]:leading-normal ${
+                      on
+                        ? "bg-black text-white"
+                        : "bg-[#F0EEE8] text-[#5A5A52] hover:bg-[#E8E8E4]"
+                    }`}
+                  >
+                    <span className="block truncate">
+                      {f.label}
+                      {typeof f.count === "number" ? (
+                        <span className="ms-0.5 opacity-70 tabular-nums">
+                          {f.count}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {error ? (
+          <p className="shrink-0 border-y border-red-100 bg-red-50 px-4 py-2 text-[12px] text-red-700 [font-family:var(--font-body)]">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {filteredSessions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 px-8 py-20 text-center">
+              <MessageSquare
+                className="h-10 w-10 text-[#D4D4CE]"
+                strokeWidth={1.25}
+              />
+              <p className="text-[15px] text-black [font-family:var(--font-body)]">
+                {sessions.length === 0 ? "No live chats yet" : "No matches"}
+              </p>
+              <p className="text-[13px] text-[#8A8A80] [font-family:var(--font-body)]">
+                {sessions.length === 0
+                  ? "Stay on this page so customers can reach you."
+                  : "Try another search or filter."}
+              </p>
+            </div>
+          ) : (
+            filteredSessions.map((s) => (
+              <SessionRow
+                key={s.id}
+                session={s}
+                selected={active?.id === s.id}
+                onSelect={() => void openSession(s)}
+              />
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* Resize handle */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize inbox"
+        onPointerDown={onResizePointerDown}
+        className={`relative z-10 hidden w-[5px] shrink-0 cursor-col-resize touch-none bg-transparent lg:block ${
+          resizing ? "bg-[#E8E8E4]" : "hover:bg-[#E8E8E4]"
+        }`}
+      >
+        <span className="absolute inset-y-0 -left-1 -right-1" />
+      </div>
+
+      {/* Conversation — WhatsApp-style: fills the viewport on mobile when open */}
+      <section
+        className={`${
+          active ? "flex" : "hidden"
+        } relative min-h-0 min-w-0 flex-1 flex-col bg-[#F7F5F0] lg:flex`}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.045]"
+          style={{
+            backgroundImage:
+              "radial-gradient(#000 0.55px, transparent 0.55px)",
+            backgroundSize: "16px 16px",
+          }}
+        />
+
+        {!active ? (
+          <div className="relative z-[1] flex min-h-0 flex-1 flex-col items-center justify-center overflow-x-hidden overflow-y-auto px-3 py-5 text-center sm:px-6 sm:py-8 md:py-10">
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,rgba(196,168,130,0.22)_0%,transparent_68%)] blur-2xl"
+              animate={{ scale: [1, 1.12, 1], opacity: [0.45, 0.8, 0.45] }}
+              transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-lg"
+            >
+              <div className="mb-8">
+                <TailorStoreEmptyScene storeName={storeName} />
+              </div>
+
+              <motion.h2
+                className="text-[22px] font-light tracking-tight text-black [font-family:var(--font-display)] min-[400px]:text-[26px] sm:text-[32px]"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35, duration: 0.45 }}
+              >
+                Tailor messages
+              </motion.h2>
+              <motion.p
+                className="mx-auto mt-2 max-w-sm px-1 text-[13px] leading-relaxed text-[#8A8A80] [font-family:var(--font-body)] sm:mt-3 sm:text-[14px]"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.45, duration: 0.45 }}
+              >
+                Pick a customer chat to accept it, or reopen an active conversation
+                from your inbox when you&apos;re ready to reply.
+              </motion.p>
+
+            </motion.div>
+          </div>
+        ) : (
+          <>
+            {copyToast ? (
+              <div
+                className={`pointer-events-none absolute inset-x-0 bottom-28 z-30 flex justify-center px-4 transition-opacity duration-500 ${
+                  copyToastShown ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                <p className="rounded-full bg-[#111B21]/90 px-3.5 py-1.5 text-[12px] text-white shadow-lg [font-family:var(--font-body)]">
+                  {copyToast}
+                </p>
+              </div>
+            ) : null}
+              <header
+                className={`relative flex shrink-0 items-center justify-between gap-1.5 border-b border-[#E8E8E4] bg-[#FFFDF9] py-1.5 pe-2 ps-2 pt-[max(0.375rem,env(safe-area-inset-top))] sm:gap-3 sm:px-4 sm:py-2.5 sm:pt-2.5 ${
+                  headerMenuOpen ? "z-40" : "z-20"
+                }`}
+              >
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+                <button
+                  type="button"
+                  aria-label="Back to inbox"
+                  title="Back to inbox"
+                  onClick={closeChatWindow}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/10 hover:text-black hover:cursor-pointer touch-manipulation lg:hidden"
+                >
+                  <ArrowLeft className="h-5 w-5" strokeWidth={1.75} />
+                </button>
+                <ChatAvatar
+                  name={active.customer?.name || "Visitor"}
+                  src={active.customer?.profilePic}
+                  size="md"
+                  online={
+                    !chatEndedBy && Boolean(active.customerOnline)
+                  }
+                  className="border border-black/50"
+                />
+                <div className="min-w-0">
+                  <h2 className="chat-text-title truncate text-black">
+                    {active.customer?.name || "Visitor"}
+                  </h2>
+                  <p className="chat-text-subtitle truncate text-[#8A8A80]">
+                    {chatEndedBy
+                      ? chatEndedBy === "customer"
+                        ? "Customer ended the chat"
+                        : "You ended the chat"
+                      : peerTyping
+                        ? "typing…"
+                        : formatCustomerPresenceLine({
+                            online: active.customerOnline,
+                            lastSeenAt: active.customerLastSeenAt,
+                            waiting: active.status === "waiting",
+                            locale: active.locale,
+                          })}
+                  </p>
+                </div>
+              </div>
+              <div className="relative z-50 flex shrink-0 items-center gap-0.5">
+                {allowLiveChatAudioCalls ? (
+                  <button
+                    type="button"
+                    aria-label="Audio call"
+                    title={
+                      audioCall.featureOn
+                        ? audioCall.dialDisabled
+                          ? active?.status !== "active" || chatEndedBy
+                            ? "Call available on active chats only"
+                            : audioCall.status !== "idle"
+                              ? "Call in progress"
+                              : "Audio call"
+                          : "Audio call"
+                        : "Audio calls are disabled"
+                    }
+                    disabled={audioCall.dialDisabled}
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      void audioCall.invite();
+                    }}
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656F] transition-colors duration-150 hover:cursor-pointer hover:bg-black/10 hover:text-black disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    <Phone
+                      className="pointer-events-none h-5 w-5"
+                      strokeWidth={1.75}
+                    />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  aria-label="Search messages"
+                  title="Search messages"
+                  aria-pressed={threadSearchOpen}
+                  onClick={() => {
+                    setHeaderMenuOpen(false);
+                    setThreadSearchOpen((v) => {
+                      if (v) setThreadSearch("");
+                      return !v;
+                    });
+                  }}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-[#54656F] transition-colors duration-150 hover:cursor-pointer hover:bg-black/10 hover:text-black ${
+                    threadSearchOpen ? "bg-black/10 text-black" : ""
+                  }`}
+                >
+                  <Search
+                    className="pointer-events-none h-5 w-5"
+                    strokeWidth={1.75}
+                  />
+                </button>
+                <div ref={headerMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label="Chat options"
+                  aria-expanded={headerMenuOpen}
+                  aria-haspopup="menu"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setThreadSearchOpen(false);
+                    setHeaderMenuOpen((v) => !v);
+                  }}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-[#54656F] transition-colors duration-150 hover:cursor-pointer hover:bg-black/10 hover:text-black ${
+                    headerMenuOpen ? "bg-black/10 text-black" : ""
+                  }`}
+                >
+                  <MoreVertical
+                    className="pointer-events-none h-5 w-5"
+                    strokeWidth={1.75}
+                  />
+                </button>
+                {headerMenuOpen ? (
+                  <div
+                    role="menu"
+                    className="absolute end-0 top-full z-[100] mt-1.5 max-h-[min(70vh,28rem)] min-w-[14.5rem] overflow-y-auto overflow-x-hidden rounded-lg border border-[#E8E8E4] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
+                  >
+                    {(
+                      [
+                        {
+                          key: "contact",
+                          label: "Contact info",
+                          icon: Info,
+                          tone: "default" as const,
+                          onPick: () => {
+                            setHeaderMenuOpen(false);
+                            setHeaderPanel("contact");
+                          },
+                        },
+                        {
+                          key: "select",
+                          label: "Select messages",
+                          icon: CheckSquare,
+                          tone: "default" as const,
+                          onPick: () => {
+                            setHeaderMenuOpen(false);
+                            setSelectMode(true);
+                            setSelectedIds(new Set());
+                          },
+                        },
+                        {
+                          key: "clear",
+                          label: "Clear chat",
+                          icon: Eraser,
+                          tone: "default" as const,
+                          onPick: () => {
+                            setHeaderMenuOpen(false);
+                            setConfirmAction("clear");
+                          },
+                        },
+                        {
+                          key: "deleteAll",
+                          label: "Delete all messages",
+                          icon: Trash2,
+                          tone: "danger" as const,
+                          onPick: () => {
+                            setHeaderMenuOpen(false);
+                            setConfirmAction("deleteAll");
+                          },
+                        },
+                        {
+                          key: "close",
+                          label: "Close window",
+                          icon: XCircle,
+                          tone: "default" as const,
+                          onPick: () => {
+                            closeChatWindow();
+                          },
+                        },
+                        ...(!chatEndedBy
+                          ? [
+                              {
+                                key: "end",
+                                label: "End chat",
+                                icon: PhoneOff,
+                                tone: "danger" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  setConfirmAction("end");
+                                },
+                              },
+                            ]
+                          : []),
+                        ...(active?.customerBlocked
+                          ? [
+                              {
+                                key: "unblock",
+                                label: "Unblock customer",
+                                icon: Ban,
+                                tone: "default" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  setConfirmAction("unblock");
+                                },
+                              },
+                            ]
+                          : [
+                              {
+                                key: "block",
+                                label: "Block customer",
+                                icon: Ban,
+                                tone: "danger" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  setConfirmAction("block");
+                                },
+                              },
+                            ]),
+                        ...(chatEndedBy && !active?.customerBlocked
+                          ? [
+                              {
+                                key: "continue",
+                                label: "Continue chat",
+                                icon: PhoneOff,
+                                tone: "default" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  void restartChat();
+                                },
+                              },
+                            ]
+                          : []),
+                      ] as const
+                    ).map((item, index) => {
+                      const Icon = item.icon;
+                      const showDivider = index === 2 || index === 5;
+                      return (
+                        <div key={item.key}>
+                          {showDivider ? (
+                            <div
+                              className="border-t border-[#EFEFEA]"
+                              role="separator"
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              item.onPick();
+                            }}
+                            className={`group flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-[13px] transition-colors duration-150 hover:cursor-pointer [font-family:var(--font-body)] ${
+                              item.tone === "danger"
+                                ? "text-[#B42318] hover:bg-[#FFF5F5]"
+                                : "text-[#111B21] hover:bg-[#F0EFEC]"
+                            }`}
+                          >
+                            <Icon
+                              className={`pointer-events-none h-4 w-4 shrink-0 transition-colors duration-150 ${
+                                item.tone === "danger"
+                                  ? "text-[#B42318] group-hover:text-[#912018]"
+                                  : "text-[#667781] group-hover:text-black"
+                              }`}
+                              strokeWidth={1.75}
+                            />
+                            <span className="transition-transform duration-150 group-hover:translate-x-0.5">
+                              {item.label}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                </div>
+              </div>
+            </header>
+
+            {threadSearchOpen ? (
+              <ChatThreadSearchBar
+                value={threadSearch}
+                onChange={setThreadSearch}
+                onClose={closeThreadSearch}
+                inputRef={threadSearchInputRef}
+                matchCount={matchIds.length}
+                activeIndex={
+                  matchIds.length === 0
+                    ? 0
+                    : Math.min(activeMatchIndex, matchIds.length - 1)
+                }
+                onPrev={goPrevMatch}
+                onNext={goNextMatch}
+                placeholder="Search messages"
+              />
+            ) : null}
+
+            {selectMode ? (
+              <div className="relative z-[1] flex shrink-0 items-center justify-between gap-3 border-b border-[#E8E8E4] bg-white px-4 py-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectMode(false);
+                    setSelectedIds(new Set());
+                  }}
+                  className="text-[12px] text-[#54656F] transition hover:text-black hover:cursor-pointer [font-family:var(--font-body)]"
+                >
+                  Cancel
+                </button>
+                <p className="text-[12px] text-black [font-family:var(--font-body)]">
+                  {selectedIds.size} selected
+                </p>
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={requestDeleteSelected}
+                  className="text-[12px] text-[#B42318] transition hover:cursor-pointer disabled:opacity-40 disabled:hover:cursor-not-allowed [font-family:var(--font-body)]"
+                >
+                  Delete
+                </button>
+              </div>
+            ) : null}
+
+            <div className="relative z-0 min-h-0 flex-1">
+            <div
+              ref={threadRef}
+              data-lenis-prevent
+              data-lenis-prevent-wheel
+              data-chat-scroll
+              className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y bg-[#F7F5F0] px-3 py-3 [-webkit-overflow-scrolling:touch] sm:px-4 sm:py-4 md:px-8 lg:px-10"
+            >
+              <ChatPinnedMessagesBar
+                messages={active.messages || []}
+                onJump={jumpToMessage}
+                onUnpin={(id) => {
+                  const msg = (active.messages || []).find((m) => m.id === id);
+                  if (msg) void pinChatMessage(msg, false);
+                }}
+              />
+              <div className="space-y-1">
+              {(active.messages || []).map((msg, index, list) => {
+                const isMatch =
+                  searchQuery.length > 0 && matchIds.includes(msg.id);
+                const isActiveMatch =
+                  isMatch &&
+                  matchIds[
+                    Math.min(activeMatchIndex, Math.max(0, matchIds.length - 1))
+                  ] === msg.id;
+                const dimWhileSearch =
+                  searchQuery.length > 0 && !isMatch && msg.role !== "system";
+                const prevMsg = index > 0 ? list[index - 1] : null;
+                const day = messageDayKey(msg.at);
+                const showDateBadge =
+                  Boolean(day) &&
+                  (!prevMsg || messageDayKey(prevMsg.at) !== day);
+                const dateBadge = showDateBadge ? (
+                  <div className="flex justify-center py-2">
+                    <p className="chat-text-system rounded-full bg-[#FFFFFFCC] px-2.5 py-0.5 text-center text-[#54656F] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-3.5 sm:py-1">
+                      {formatThreadDateBadge(msg.at)}
+                    </p>
+                  </div>
+                ) : null;
+
+                if (msg.kind === "call") {
+                  const callAlign =
+                    msg.role === "system" || msg.callOutcome === "answered"
+                      ? "center"
+                      : msg.role === "agent"
+                        ? "end"
+                        : "start";
+                  const callMine = callAlign === "end";
+                  const callSelected = selectedIds.has(msg.id);
+                  const callCanSelect = selectMode && !msg.deleted;
+                  return (
+                    <Fragment key={msg.id}>
+                      {dateBadge}
+                      <div
+                        data-msg-id={msg.id}
+                        className={
+                          callCanSelect ? "cursor-pointer" : undefined
+                        }
+                        onClick={() => {
+                          if (!callCanSelect) return;
+                          toggleSelectMessage(msg.id);
+                        }}
+                      >
+                        <CallHistoryBubble
+                          text={msg.text}
+                          callOutcome={msg.callOutcome}
+                          durationMs={msg.durationMs}
+                          at={msg.at}
+                          locale={active.locale || "en"}
+                          align={callAlign}
+                          searchQuery={searchQuery}
+                          searchActive={isActiveMatch}
+                          dimmed={Boolean(searchQuery && !isMatch)}
+                          leading={
+                            selectMode ? (
+                              <span
+                                aria-hidden
+                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${
+                                  callSelected
+                                    ? "border-black bg-black text-white"
+                                    : "border-[#C8C8C0] bg-white text-transparent"
+                                }`}
+                              >
+                                ✓
+                              </span>
+                            ) : null
+                          }
+                          onContextMenu={(e) => {
+                            if (selectMode || chatEndedBy) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMenuMsgId(msg.id);
+                          }}
+                          menu={
+                            !selectMode && !chatEndedBy ? (
+                              <ChatMessageMenu
+                                open={menuMsgId === msg.id}
+                                onOpenChange={(next) =>
+                                  setMenuMsgId(next ? msg.id : null)
+                                }
+                                mine={callMine}
+                                onDark={callMine}
+                                callBadge
+                                hideTrigger
+                                menuAlign={
+                                  callAlign === "end" ? "start" : "end"
+                                }
+                                onAction={(action) =>
+                                  void onMessageMenuAction(
+                                    msg,
+                                    action,
+                                    callMine,
+                                  )
+                                }
+                              />
+                            ) : null
+                          }
+                        />
+                      </div>
+                    </Fragment>
+                  );
+                }
+                if (msg.role === "system") {
+                  return (
+                    <Fragment key={msg.id}>
+                      {dateBadge}
+                      <div
+                        data-msg-id={msg.id}
+                        className={`flex justify-center py-2 transition-opacity ${
+                          searchQuery && !isMatch ? "opacity-35" : ""
+                        }`}
+                      >
+                        <p className="chat-text-system max-w-[92%] rounded-full bg-[#FFFFFFCC] px-2.5 py-0.5 text-center text-[#667781] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-3.5 sm:py-1">
+                          {searchQuery ? (
+                            <ChatSearchHighlight
+                              text={msg.text}
+                              query={searchQuery}
+                              active={isActiveMatch}
+                            />
+                          ) : (
+                            msg.text
+                          )}
+                        </p>
+                      </div>
+                    </Fragment>
+                  );
+                }
+                // FAQ / MOTD Care bot history stays on the left (context), not as "mine".
+                const isCareBot =
+                  msg.role === "agent" &&
+                  (msg.senderName === "MOTD Care" ||
+                    msg.senderName === "MOTD Assistant");
+                const mine = msg.role === "agent" && !isCareBot;
+                const selected = selectedIds.has(msg.id);
+                return (
+                  <Fragment key={msg.id}>
+                    {dateBadge}
+                  <div
+                    data-msg-id={msg.id}
+                    className={`flex items-center gap-2 transition-opacity ${mine ? "justify-end" : "justify-start"} ${
+                      selectMode ? "cursor-pointer" : ""
+                    } ${dimWhileSearch ? "opacity-35" : "opacity-100"}`}
+                    onClick={() => {
+                      if (!selectMode) return;
+                      toggleSelectMessage(msg.id);
+                    }}
+                  >
+                    {selectMode ? (
+                      <span
+                        aria-hidden
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${
+                          selected
+                            ? "border-black bg-black text-white"
+                            : "border-[#C8C8C0] bg-white text-transparent"
+                        }`}
+                      >
+                        ✓
+                      </span>
+                    ) : null}
+                    <div
+                      className={`group relative max-w-[min(92%,20rem)] px-2.5 py-1.5 shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] sm:max-w-[min(85%,28rem)] lg:max-w-[min(85%,32rem)] ${
+                        mine
+                          ? "rounded-[7.5px] rounded-tr-none bg-black/80 text-white"
+                          : "rounded-[7.5px] rounded-tl-none border border-[#EBEBE8] bg-[#FFFDF9] text-black"
+                      } ${selected ? "ring-2 ring-black/25" : ""} ${
+                        flashMsgId === msg.id || isActiveMatch
+                          ? "ring-2 ring-[#FFEB3B] ring-offset-1 ring-offset-transparent"
+                          : isMatch
+                            ? "ring-1 ring-[#FFF59D]/80"
+                            : ""
+                      } ${
+                        !msg.deleted && (msg.reactions?.length || 0) > 0
+                          ? "mb-3"
+                          : ""
+                      }`}
+                      onContextMenu={(e) => {
+                        if (selectMode || chatEndedBy) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setMenuMsgId(msg.id);
+                      }}
+                    >
+                      <span
+                        aria-hidden
+                        className={`pointer-events-none absolute top-0 h-0 w-0 border-y-[6px] border-y-transparent ${
+                          mine
+                            ? "-right-[6px] border-l-[6px] border-l-black/80"
+                            : "-left-[6px] border-r-[6px] border-r-[#FFFDF9]"
+                        }`}
+                      />
+                      {!msg.deleted && !selectMode && !chatEndedBy ? (
+                        <ChatReactionBar
+                          myReaction={
+                            msg.reactions?.find((r) => r.byRole === "agent")
+                              ?.emoji || null
+                          }
+                          onReact={(emoji) =>
+                            void reactToChatMessage(msg, emoji)
+                          }
+                          align={mine ? "end" : "start"}
+                        />
+                      ) : null}
+                      {!msg.deleted && (msg.reactions?.length || 0) > 0 ? (
+                        <ChatReactionChips
+                          reactions={msg.reactions || []}
+                          myRole="agent"
+                          mine={mine}
+                          disabled={Boolean(chatEndedBy) || selectMode}
+                          onToggle={(emoji) =>
+                            void reactToChatMessage(msg, emoji)
+                          }
+                        />
+                      ) : null}
+                      {msg.deleted ? (
+                        !selectMode && !chatEndedBy ? (
+                          <div
+                            className={`absolute top-1 z-20 ${
+                              mine ? "start-1" : "end-1"
+                            }`}
+                          >
+                            <ChatMessageMenu
+                              open={menuMsgId === msg.id}
+                              onOpenChange={(next) =>
+                                setMenuMsgId(next ? msg.id : null)
+                              }
+                              mine={mine}
+                              onDark={mine}
+                              tombstone
+                              hideTrigger
+                              menuAlign={mine ? "start" : "end"}
+                              onAction={(action) =>
+                                void onMessageMenuAction(msg, action, mine)
+                              }
+                            />
+                          </div>
+                        ) : null
+                      ) : (
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          {mine ? (
+                            <>
+                              {!selectMode && !chatEndedBy ? (
+                                <div
+                                  className={`opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 ${
+                                    menuMsgId === msg.id
+                                      ? "sm:opacity-100"
+                                      : ""
+                                  }`}
+                                >
+                                  <ChatMessageMenu
+                                    open={menuMsgId === msg.id}
+                                    onOpenChange={(next) =>
+                                      setMenuMsgId(next ? msg.id : null)
+                                    }
+                                    mine={mine}
+                                    onDark={mine}
+                                    canEdit={
+                                      mine &&
+                                      msg.status !== "read" &&
+                                      (msg.kind === "text" ||
+                                        msg.kind === "image" ||
+                                        msg.kind === "file" ||
+                                        !msg.kind)
+                                    }
+                                    canCopy={Boolean(
+                                      (msg.caption || msg.text || "").trim(),
+                                    )}
+                                    canForward={!msg.deleted}
+                                    canPin
+                                    isPinned={Boolean(msg.pinnedAt)}
+                                    menuAlign="start"
+                                    myReaction={
+                                      msg.reactions?.find(
+                                        (r) => r.byRole === "agent",
+                                      )?.emoji || null
+                                    }
+                                    onReact={(emoji) =>
+                                      void reactToChatMessage(msg, emoji)
+                                    }
+                                    onAction={(action) =>
+                                      void onMessageMenuAction(
+                                        msg,
+                                        action,
+                                        mine,
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ) : (
+                                <span />
+                              )}
+                              <p className="chat-text-meta min-w-0 truncate text-end font-medium text-white/75">
+                                You
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="chat-text-meta min-w-0 flex-1 truncate text-start font-medium text-[#8A8A80]">
+                                {msg.senderName ? (
+                                  searchQuery ? (
+                                    <ChatSearchHighlight
+                                      text={msg.senderName}
+                                      query={searchQuery}
+                                      active={isActiveMatch}
+                                    />
+                                  ) : (
+                                    msg.senderName
+                                  )
+                                ) : (
+                                  "Customer"
+                                )}
+                              </p>
+                              {!selectMode && !chatEndedBy ? (
+                                <div
+                                  className={`opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 ${
+                                    menuMsgId === msg.id
+                                      ? "sm:opacity-100"
+                                      : ""
+                                  }`}
+                                >
+                                  <ChatMessageMenu
+                                    open={menuMsgId === msg.id}
+                                    onOpenChange={(next) =>
+                                      setMenuMsgId(next ? msg.id : null)
+                                    }
+                                    mine={mine}
+                                    onDark={mine}
+                                    canEdit={false}
+                                    canCopy={Boolean(
+                                      (msg.caption || msg.text || "").trim(),
+                                    )}
+                                    canForward={!msg.deleted}
+                                    canPin
+                                    isPinned={Boolean(msg.pinnedAt)}
+                                    menuAlign="end"
+                                    myReaction={
+                                      msg.reactions?.find(
+                                        (r) => r.byRole === "agent",
+                                      )?.emoji || null
+                                    }
+                                    onReact={(emoji) =>
+                                      void reactToChatMessage(msg, emoji)
+                                    }
+                                    onAction={(action) =>
+                                      void onMessageMenuAction(
+                                        msg,
+                                        action,
+                                        mine,
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {msg.replyTo ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (msg.replyTo?.id) jumpToMessage(msg.replyTo.id);
+                          }}
+                          className={`mb-1.5 w-full rounded-md border-s-[3px] px-2 py-1 text-start transition hover:cursor-pointer ${
+                            mine
+                              ? "border-s-white/70 bg-white/10 hover:bg-white/15"
+                              : "border-s-black bg-black/[0.04] hover:bg-black/[0.07]"
+                          }`}
+                          title="Jump to message"
+                        >
+                          <p
+                            className={`chat-text-meta truncate font-medium ${
+                              mine ? "text-white/80" : "text-[#54656F]"
+                            }`}
+                          >
+                            {msg.replyTo.senderName ||
+                              (msg.replyTo.role === "agent"
+                                ? "You"
+                                : "Customer")}
+                          </p>
+                          <p
+                            className={`chat-text-list-preview truncate ${
+                              mine ? "text-white/65" : "text-[#8A8A80]"
+                            }`}
+                          >
+                            {msg.replyTo.text}
+                          </p>
+                        </button>
+                      ) : null}
+                      {(() => {
+                        const metaInline = (
+                          <span
+                            className={`chat-text-time chat-text-time-inline tabular-nums ${
+                              mine ? "text-white/50" : "text-[#8A8A80]"
+                            }`}
+                          >
+                            {msg.editedAt ? <span>Edited</span> : null}
+                            {formatMsgTime(msg.at)}
+                            {mine && !msg.deleted ? (
+                              <MessageStatusTicks
+                                status={msg.status || "sent"}
+                                onDark
+                              />
+                            ) : null}
+                          </span>
+                        );
+                        const metaRow = (
+                          <p
+                            className={`chat-text-time mt-0.5 flex items-center justify-end gap-1 tabular-nums ${
+                              mine ? "text-white/50" : "text-[#8A8A80]"
+                            }`}
+                          >
+                            {msg.editedAt ? <span>Edited</span> : null}
+                            {formatMsgTime(msg.at)}
+                            {mine && !msg.deleted ? (
+                              <MessageStatusTicks
+                                status={msg.status || "sent"}
+                                onDark
+                              />
+                            ) : null}
+                          </p>
+                        );
+                        const textBodyClass =
+                          "chat-text-body whitespace-pre-wrap break-words after:clear-both after:table";
+
+                        if (msg.deleted) {
+                          return (
+                            <p
+                              className={`italic ${textBodyClass} ${
+                                mine ? "text-white/70" : "text-[#8A8A80]"
+                              }`}
+                            >
+                              {msg.deletedBy === "agent"
+                                ? "You deleted this message"
+                                : "Customer deleted this message"}
+                              {metaInline}
+                            </p>
+                          );
+                        }
+
+                        if (msg.kind === "voice" && msg.audio) {
+                          return (
+                            <div className="space-y-1.5">
+                              {msg.data ? (
+                                <ChatAttachmentBubble
+                                  kind={
+                                    msg.attachmentKind === "file"
+                                      ? "file"
+                                      : "image"
+                                  }
+                                  data={msg.data}
+                                  fileName={msg.fileName}
+                                  fileSize={msg.fileSize}
+                                  mimeType={msg.mimeType}
+                                  onDark={mine}
+                                />
+                              ) : null}
+                              <VoiceNoteBubble
+                                audio={msg.audio}
+                                durationMs={msg.durationMs}
+                                onDark={mine}
+                              />
+                              {metaRow}
+                            </div>
+                          );
+                        }
+
+                        if (msg.kind === "image" && msg.data) {
+                          return (
+                            <div className="space-y-1">
+                              <ChatAttachmentBubble
+                                kind="image"
+                                data={msg.data}
+                                fileName={msg.fileName}
+                                fileSize={msg.fileSize}
+                                mimeType={msg.mimeType}
+                                onDark={mine}
+                              />
+                              {msg.caption ? (
+                                <div className="space-y-0">
+                                  <p className={textBodyClass}>
+                                    <ChatLinkedText
+                                      text={msg.caption}
+                                      query={searchQuery}
+                                      active={isActiveMatch}
+                                      onDark={mine}
+                                    />
+                                    {metaInline}
+                                  </p>
+                                  <ChatLinkPreviews
+                                    text={msg.caption}
+                                    onDark={mine}
+                                  />
+                                </div>
+                              ) : (
+                                metaRow
+                              )}
+                            </div>
+                          );
+                        }
+
+                        if (msg.kind === "file" && msg.data) {
+                          return (
+                            <div className="space-y-1">
+                              <ChatAttachmentBubble
+                                kind="file"
+                                data={msg.data}
+                                fileName={msg.fileName}
+                                fileSize={msg.fileSize}
+                                mimeType={msg.mimeType}
+                                onDark={mine}
+                              />
+                              {msg.caption ? (
+                                <div className="space-y-0">
+                                  <p className={textBodyClass}>
+                                    <ChatLinkedText
+                                      text={msg.caption}
+                                      query={searchQuery}
+                                      active={isActiveMatch}
+                                      onDark={mine}
+                                    />
+                                    {metaInline}
+                                  </p>
+                                  <ChatLinkPreviews
+                                    text={msg.caption}
+                                    onDark={mine}
+                                  />
+                                </div>
+                              ) : (
+                                metaRow
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-0">
+                            <p className={textBodyClass}>
+                              <ChatLinkedText
+                                text={msg.text}
+                                query={searchQuery}
+                                active={isActiveMatch}
+                                onDark={mine}
+                              />
+                              {metaInline}
+                            </p>
+                            <ChatLinkPreviews text={msg.text} onDark={mine} />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  </Fragment>
+                );
+              })}
+
+              {!chatEndedBy && peerTyping ? (
+                <ChatTypingBubble label="typing…" />
+              ) : null}
+
+              {chatEndedBy || active.customerBlocked ? (
+                <div className="flex justify-center py-4">
+                  <div className="rounded-[7.5px] bg-[#FFFFFFE6] px-3.5 py-1.5 text-center shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] backdrop-blur-sm">
+                    <p className="chat-text-system text-[#54656F]">
+                      {active.customerBlocked
+                        ? "Customer is blocked — chat kept in inbox for unblock"
+                        : chatEndedBy === "customer"
+                          ? "This chat was ended by the customer"
+                          : "You ended this chat"}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              </div>
+            </div>
+            <ChatJumpToLatest
+              visible={showJump}
+              count={unseenCount}
+              onJump={() => jumpToLatest(scrollThreadToBottom)}
+            />
+            </div>
+
+            {chatEndedBy ? (
+              <div className="relative z-[1] flex shrink-0 flex-col gap-2 border-t border-[#E8E8E4] bg-[#FFFDF9] px-4 py-3">
+                {active.customerBlocked ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmAction("unblock")}
+                    className="w-full bg-black px-4 py-3 text-[11px] uppercase tracking-[0.16em] text-white transition hover:bg-[#1a1a1a] hover:cursor-pointer [font-family:var(--font-ui)]"
+                  >
+                    Unblock customer
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={restarting}
+                    onClick={() => void restartChat()}
+                    className="w-full bg-black px-4 py-3 text-[11px] uppercase tracking-[0.16em] text-white transition hover:bg-[#1a1a1a] disabled:opacity-40 hover:cursor-pointer disabled:hover:cursor-not-allowed [font-family:var(--font-ui)]"
+                  >
+                    {restarting ? "Continuing…" : "Continue chat"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="relative z-[1] shrink-0 bg-transparent px-2 py-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-2.5">
+                {attachNotice ? (
+                  <div
+                    role="alert"
+                    className="mb-2 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-start shadow-sm"
+                  >
+                    <p className="min-w-0 flex-1 text-[12px] leading-snug text-red-800 [font-family:var(--font-body)] sm:text-[13px]">
+                      {attachNotice}
+                    </p>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={() => setAttachNotice("")}
+                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-red-700 transition hover:bg-red-100 hover:cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                  </div>
+                ) : null}
+                {editingId || replyTo ? (
+                  <div className="mb-2 flex items-stretch gap-2 overflow-hidden rounded-xl border border-[#E8E8E4] bg-white shadow-sm">
+                    <div className="w-1 shrink-0 bg-black" />
+                    <div className="min-w-0 flex-1 py-2 pe-1">
+                      <p className="text-[11px] font-medium text-black [font-family:var(--font-body)]">
+                        {editingId ? "Editing message" : "Replying"}
+                      </p>
+                      <p className="truncate text-[12px] text-[#667781] [font-family:var(--font-body)]">
+                        {editingId ? draft || "…" : replyTo?.text || ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Cancel"
+                      onClick={clearReplyAndEdit}
+                      className="me-1 flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full text-[#667781] transition hover:bg-black/5 hover:cursor-pointer"
+                    >
+                      <X className="h-4 w-4" strokeWidth={2} />
+                    </button>
+                  </div>
+                ) : null}
+                {pendingAttachment ? (
+                  <ChatComposerAttachPreview
+                    attachment={pendingAttachment}
+                    onClear={clearPendingAttachment}
+                    status={attachStatus}
+                    progress={attachProgress}
+                    onRetry={() => void sendMessage()}
+                  />
+                ) : null}
+                {voice.recording ? (
+                  <div className="chat-composer-shell flex w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:px-2 sm:py-1.5">
+                    <button
+                      type="button"
+                      onClick={cancelVoiceNote}
+                      aria-label="Cancel recording"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#E53935] transition hover:bg-[#FFF5F5] hover:cursor-pointer"
+                    >
+                      <Trash2 className="h-5 w-5" strokeWidth={1.75} />
+                    </button>
+                    <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#E53935]" />
+                    <span className="text-[14px] tabular-nums text-[#111B21] [font-family:var(--font-ui)]">
+                      {formatRecordingTime(voice.elapsedMs)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-[#667781] [font-family:var(--font-body)]">
+                      Recording…
+                    </span>
+                    <button
+                      type="button"
+                      disabled={sending}
+                      onClick={() => void sendVoiceNote()}
+                      aria-label="Send voice note"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white transition hover:bg-[#1a1a1a] disabled:opacity-35 hover:cursor-pointer"
+                    >
+                      <Send className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={onComposerSubmit} className="relative w-full">
+                    <ChatEmojiPicker
+                      open={emojiOpen}
+                      onClose={() => setEmojiOpen(false)}
+                      isAr={locale === "ar"}
+                      onPick={(emoji) =>
+                        insertAtCursor(
+                          composerRef.current,
+                          draft,
+                          emoji,
+                          onDraftChange,
+                        )
+                      }
+                    />
+                    <div className="chat-composer-shell relative flex w-full items-end gap-0.5 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:gap-1 sm:px-2 sm:py-1.5">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept={FILE_ACCEPT}
+                        className="hidden"
+                        onChange={(e) => onAttachFileChange(e, "file")}
+                      />
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept={IMAGE_ACCEPT}
+                        className="hidden"
+                        onChange={(e) => onAttachFileChange(e, "image")}
+                      />
+                      <input
+                        ref={videoInputRef}
+                        type="file"
+                        accept={VIDEO_ACCEPT}
+                        className="hidden"
+                        onChange={(e) => onAttachFileChange(e, "video")}
+                      />
+                      <input
+                        ref={audioInputRef}
+                        type="file"
+                        accept={AUDIO_ACCEPT}
+                        className="hidden"
+                        onChange={(e) => onAttachFileChange(e, "audio")}
+                      />
+                      <div className="relative mb-0.5">
+                        <button
+                          type="button"
+                          disabled={sending}
+                          aria-label="Attach"
+                          aria-expanded={attachOpen}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setEmojiOpen(false);
+                            setAttachOpen((v) => !v);
+                          }}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/5 hover:cursor-pointer disabled:opacity-40"
+                        >
+                          <Paperclip
+                            className="h-[22px] w-[22px]"
+                            strokeWidth={1.5}
+                          />
+                        </button>
+                        <ChatAttachMenu
+                          open={attachOpen}
+                          onClose={() => setAttachOpen(false)}
+                          onPick={onAttachMenuPick}
+                          compact
+                        />
+                      </div>
+                      <div className="relative mb-0.5">
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          data-chat-emoji-toggle
+                          aria-label="Emoji"
+                          aria-expanded={emojiOpen}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setAttachOpen(false);
+                            setEmojiOpen((v) => !v);
+                          }}
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/5 hover:cursor-pointer ${
+                            emojiOpen ? "bg-black/5 text-black" : ""
+                          }`}
+                        >
+                          <Smile
+                            className="h-[22px] w-[22px]"
+                            strokeWidth={1.5}
+                          />
+                        </button>
+                      </div>
+                      <textarea
+                        ref={composerRef}
+                        value={draft}
+                        onChange={(e) => onDraftChange(e.target.value)}
+                        onKeyDown={onComposerKeyDown}
+                        rows={1}
+                        placeholder={
+                          pendingAttachment
+                            ? "Add a caption…"
+                            : "Type a message"
+                        }
+                        className="chat-composer-input max-h-28 min-w-0 flex-1 resize-none bg-transparent py-1 pe-1 text-[#111B21] outline-none placeholder:text-[#667781] sm:py-2"
+                      />
+                      <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
+                        {!hasDraft ? (
+                          <button
+                            type="button"
+                            disabled={sending || !voice.supported}
+                            onClick={() => void startVoiceNote()}
+                            aria-label="Record voice note"
+                            className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/5 hover:cursor-pointer disabled:opacity-40"
+                          >
+                            <Mic className="h-5 w-5" strokeWidth={1.75} />
+                          </button>
+                        ) : null}
+                        {canSend ? (
+                          <button
+                            type="submit"
+                            disabled={sending}
+                            aria-label="Send message"
+                            className="flex h-9 w-9 items-center justify-center rounded-full bg-black text-white transition hover:bg-[#1a1a1a] disabled:opacity-35 hover:cursor-pointer disabled:hover:cursor-not-allowed"
+                          >
+                            <Send className="h-4 w-4" strokeWidth={1.75} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {headerPanel === "contact" && active ? (
+          <div className="absolute inset-0 z-40 flex justify-end bg-black/25 p-0 backdrop-blur-[1px] sm:p-3">
+            <div className="flex h-full w-full max-w-sm flex-col overflow-hidden rounded-none border border-[#E8E8E4] bg-white shadow-xl sm:rounded-xl">
+              <div className="flex items-center justify-between border-b border-[#E8E8E4] px-4 py-3">
+                <h3 className="text-[15px] text-black [font-family:var(--font-body)]">
+                  Contact info
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={() => setHeaderPanel(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/5 hover:cursor-pointer"
+                >
+                  <X className="h-4 w-4" strokeWidth={1.75} />
+                </button>
+              </div>
+              <div className="flex flex-1 flex-col items-center gap-4 overflow-y-auto px-5 py-8">
+                <ChatAvatar
+                  name={active.customer?.name || "Visitor"}
+                  src={active.customer?.profilePic}
+                  size="lg"
+                  online={
+                    !chatEndedBy && Boolean(active.customerOnline)
+                  }
+                  className="border border-black/50"
+                />
+                <div className="w-full space-y-3 text-center">
+                  <p className="text-[18px] text-black [font-family:var(--font-display)]">
+                    {active.customer?.name || "Visitor"}
+                  </p>
+                  <dl className="space-y-2 text-start text-[13px] [font-family:var(--font-body)]">
+                    <div className="rounded-lg bg-[#F7F5F0] px-3 py-2.5">
+                      <dt className="text-[10px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                        Email
+                      </dt>
+                      <dd className="mt-0.5 text-black">
+                        {active.customer?.email || "—"}
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-[#F7F5F0] px-3 py-2.5">
+                      <dt className="text-[10px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                        Visitor type
+                      </dt>
+                      <dd className="mt-0.5 text-black">
+                        {kindLabel(active.customer?.kind)}
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-[#F7F5F0] px-3 py-2.5">
+                      <dt className="text-[10px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                        Locale
+                      </dt>
+                      <dd className="mt-0.5 text-black">
+                        {active.locale?.toUpperCase() || "EN"}
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-[#F7F5F0] px-3 py-2.5">
+                      <dt className="text-[10px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                        Presence
+                      </dt>
+                      <dd className="mt-0.5 text-black">
+                        {chatEndedBy
+                          ? "Ended"
+                          : formatCustomerPresenceLine({
+                              online: active.customerOnline,
+                              lastSeenAt: active.customerLastSeenAt,
+                              waiting: active.status === "waiting",
+                              locale: active.locale,
+                            })}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <ChatForwardPicker
+          open={Boolean(forwardMsg)}
+          targets={forwardTargets}
+          forwarding={forwarding}
+          onClose={() => {
+            if (!forwarding) setForwardMsg(null);
+          }}
+          onPick={(id) => void runForwardTo(id)}
+        />
+
+        {infoMsg ? (
+          <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/30 p-3 backdrop-blur-[1px] sm:items-center sm:p-4">
+            <div className="w-full max-w-xs overflow-hidden rounded-xl border border-[#E8E8E4] bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-[#E8E8E4] px-4 py-3">
+                <h3 className="text-[15px] text-black [font-family:var(--font-body)]">
+                  Message info
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={() => setInfoMsg(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#667781] transition hover:bg-black/5 hover:cursor-pointer"
+                >
+                  <X className="h-4 w-4" strokeWidth={2} />
+                </button>
+              </div>
+              <div className="divide-y divide-[#F0F0EC] px-4 py-1 text-[13px] [font-family:var(--font-body)]">
+                {(() => {
+                  const status = infoMsg.status || "sent";
+                  const seen = status === "read";
+                  const when = new Date(infoMsg.at).toLocaleString("en-AE", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    day: "numeric",
+                    month: "short",
+                  });
+                  return (
+                    <>
+                      <div className="flex items-center justify-between gap-3 py-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <MessageStatusTicks status="sent" />
+                          <span className="text-[#111B21]">Sent</span>
+                        </div>
+                        <span className="shrink-0 tabular-nums text-[#667781] [font-family:var(--font-ui)]">
+                          {when}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <MessageStatusTicks status="read" />
+                          <span className="text-[#111B21]">Seen</span>
+                        </div>
+                        <span className="shrink-0 tabular-nums text-[#667781] [font-family:var(--font-ui)]">
+                          {seen ? when : "—"}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {confirmAction ? (
+          <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/30 p-3 backdrop-blur-[1px] sm:items-center sm:p-4">
+            <div className="max-h-[min(90dvh,32rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-[#E8E8E4] bg-white p-4 shadow-xl sm:p-5">
+              <h3 className="text-[16px] text-black [font-family:var(--font-body)]">
+                {confirmAction === "clear"
+                  ? "Clear chat?"
+                  : confirmAction === "deleteForMe"
+                    ? "Delete for you?"
+                    : confirmAction === "end"
+                      ? "End this chat?"
+                      : confirmAction === "block"
+                        ? "Block this customer?"
+                        : confirmAction === "unblock"
+                          ? "Unblock this customer?"
+                          : "Delete all messages?"}
+              </h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-[#667781] [font-family:var(--font-body)]">
+                {confirmAction === "clear"
+                  ? "All messages in this chat will be removed. The conversation stays open."
+                  : confirmAction === "deleteForMe"
+                    ? "Removed from your chat only. The customer still sees them."
+                    : confirmAction === "end"
+                      ? "The customer will see that you ended the chat. They can continue within a short window; then it archives from the live inbox."
+                      : confirmAction === "block"
+                        ? "They won’t start new live chats. This thread stays in your inbox so you can unblock later."
+                        : confirmAction === "unblock"
+                          ? "They can start or continue live chats again. History stays in this thread."
+                          : "This permanently deletes every message in this chat."}
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmAction(null)}
+                  className="rounded-full border border-[#E8E8E4] px-3.5 py-2 text-[12px] text-black transition hover:border-black hover:cursor-pointer [font-family:var(--font-body)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={runConfirmAction}
+                  className={`rounded-full px-3.5 py-2 text-[12px] text-white transition hover:cursor-pointer [font-family:var(--font-body)] ${
+                    confirmAction === "unblock"
+                      ? "bg-black hover:bg-[#1a1a1a]"
+                      : "bg-[#B42318] hover:bg-[#912018]"
+                  }`}
+                >
+                  {confirmAction === "clear"
+                    ? "Clear"
+                    : confirmAction === "deleteForMe"
+                      ? "Delete for me"
+                      : confirmAction === "end"
+                        ? "End chat"
+                        : confirmAction === "block"
+                          ? "Block"
+                          : confirmAction === "unblock"
+                            ? "Unblock"
+                            : "Delete all"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}

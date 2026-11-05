@@ -176,6 +176,8 @@ const formatShop = (shop) => ({
   reviewCount: shop.reviewCount,
   ownerId: shop.ownerId,
   isActive: shop.isActive,
+  allowCustomerCalls: Boolean(shop.allowCustomerCalls),
+  allowLiveChatAudioCalls: Boolean(shop.allowLiveChatAudioCalls),
   profileComplete: isShopProfileComplete(shop),
   createdAt: shop.createdAt,
   updatedAt: shop.updatedAt,

@@ -1279,6 +1279,7 @@
       "shop": "Shop Profile",
       "designs": "Designs",
       "orders": "Orders",
+      "messages": "Customer chats",
       "issues": "Report issue",
       "pricing": "Pricing",
       "notifications": "Notifications",
@@ -1353,6 +1354,9 @@
         "customOrderPlaced": "New custom order",
         "customOrderReceived": "Order received",
         "tailorOrderPlaced": "New custom order",
+        "liveChatStarted": "New live chat",
+        "liveChatMessage": "Live chat message",
+        "liveChatAgentMessage": "Support message",
         "default": "Notification"
       }
     },
