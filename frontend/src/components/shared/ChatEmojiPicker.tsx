@@ -19,7 +19,8 @@ type CategoryTabKey =
   | "travel"
   | "activities"
   | "objects"
-  | "symbols";
+  | "symbols"
+  | "flags";
 
 /** Emojibase group indexes (skip 2 = Component). */
 const CATEGORY_INDEX: Record<CategoryTabKey, number> = {
@@ -31,6 +32,7 @@ const CATEGORY_INDEX: Record<CategoryTabKey, number> = {
   activities: 6,
   objects: 7,
   symbols: 8,
+  flags: 9,
 };
 
 const CATEGORY_TABS: ReadonlyArray<{
@@ -83,9 +85,15 @@ const CATEGORY_TABS: ReadonlyArray<{
   },
   {
     key: "symbols",
-    emoji: "❤️",
+    emoji: "💯",
     labelEn: "Symbols",
     labelAr: "الرموز",
+  },
+  {
+    key: "flags",
+    emoji: "🏳️",
+    labelEn: "Flags",
+    labelAr: "الأعلام",
   },
 ];
 
@@ -93,9 +101,26 @@ const ENABLED_CATEGORY_INDEXES = new Set(
   CATEGORY_TABS.map((t) => CATEGORY_INDEX[t.key]),
 );
 
-const LABEL_BY_INDEX = Object.fromEntries(
-  CATEGORY_TABS.map((t) => [CATEGORY_INDEX[t.key], t]),
-) as Record<number, (typeof CATEGORY_TABS)[number]>;
+/** Compact panel width so 8 columns stay tight on large desktops. */
+const PANEL_MAX_WIDTH_PX = 340;
+const EMOJI_COLUMNS = 8;
+
+function categoryHeaderId(key: CategoryTabKey) {
+  return `motd-emoji-cat-${key}`;
+}
+
+/** Frimousse CategoryHeader only receives `{ label }` — match our tab by EN label. */
+function tabKeyFromFrimousseLabel(label: string): CategoryTabKey | null {
+  const normalized = label.trim().toLowerCase();
+  const exact = CATEGORY_TABS.find(
+    (t) => t.labelEn.toLowerCase() === normalized,
+  );
+  if (exact) return exact.key;
+  // Emojibase wording can differ slightly ("Smileys & emotion" vs our title case).
+  return (
+    CATEGORY_TABS.find((t) => normalized.startsWith(t.key))?.key ?? null
+  );
+}
 
 const FrimousseGrid = dynamic(
   () =>
@@ -103,31 +128,27 @@ const FrimousseGrid = dynamic(
       function EmojiGrid({
         isAr,
         onPick,
-        categoryIndex,
+        autoFocusSearch,
       }: {
         isAr: boolean;
         onPick?: (emoji: string) => void;
-        categoryIndex: number;
+        autoFocusSearch: boolean;
       }) {
         return (
           <EmojiPicker.Root
-            key={categoryIndex}
             className="flex h-full min-h-0 w-full flex-col overflow-hidden"
-            columns={8}
+            columns={EMOJI_COLUMNS}
             locale="en"
             resolveEmojiData={async (locale, options) => {
               const data = await defaultEmojiDataResolver(locale, options);
+              // Keep every enabled category so search works across the full set.
               return {
                 ...data,
-                categories: data.categories.filter(
-                  (c) =>
-                    ENABLED_CATEGORY_INDEXES.has(c.index) &&
-                    c.index === categoryIndex,
+                categories: data.categories.filter((c) =>
+                  ENABLED_CATEGORY_INDEXES.has(c.index),
                 ),
-                emojis: data.emojis.filter(
-                  (e) =>
-                    ENABLED_CATEGORY_INDEXES.has(e.category) &&
-                    e.category === categoryIndex,
+                emojis: data.emojis.filter((e) =>
+                  ENABLED_CATEGORY_INDEXES.has(e.category),
                 ),
               };
             }}
@@ -137,7 +158,14 @@ const FrimousseGrid = dynamic(
               <EmojiPicker.Search
                 className="w-full appearance-none rounded-lg bg-[#F0F2F5] px-3 py-2 text-[14px] text-[#111B21] outline-none placeholder:text-[#667781] [font-family:var(--font-body)]"
                 placeholder={isAr ? "بحث عن رمز تعبيري" : "Search emoji"}
-                autoFocus
+                autoFocus={autoFocusSearch}
+                onKeyDown={(e) => {
+                  // Never let Enter submit a parent <form> (admin/fabric composers).
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
               />
             </div>
             {/*
@@ -169,21 +197,26 @@ const FrimousseGrid = dynamic(
                   className="w-full select-none pb-2"
                   components={{
                     CategoryHeader: ({ category, ...props }) => {
-                      const meta = LABEL_BY_INDEX[categoryIndex];
+                      const key = tabKeyFromFrimousseLabel(category.label);
+                      const meta = key
+                        ? CATEGORY_TABS.find((t) => t.key === key)
+                        : undefined;
                       const title =
                         (isAr ? meta?.labelAr : meta?.labelEn) ||
                         category.label;
                       return (
                         <div
                           {...props}
-                          className="bg-[#F7F8FA] px-3 pb-1 pt-2.5 text-[12px] font-medium capitalize text-[#667781] [font-family:var(--font-body)]"
+                          id={key ? categoryHeaderId(key) : undefined}
+                          data-emoji-category={key ?? undefined}
+                          className="bg-[#F7F8FA] px-2.5 pb-1 pt-2 text-[11px] font-medium capitalize text-[#667781] [font-family:var(--font-body)]"
                         >
                           {title}
                         </div>
                       );
                     },
                     Row: ({ children, ...props }) => (
-                      <div {...props} className="box-border w-full px-1">
+                      <div {...props} className="box-border flex w-full px-1">
                         {children}
                       </div>
                     ),
@@ -191,10 +224,11 @@ const FrimousseGrid = dynamic(
                       <button
                         {...props}
                         type="button"
-                        className="box-border flex h-10 items-center justify-center rounded-md text-[22px] leading-none transition data-[active]:bg-[#E9EDEF] hover:cursor-pointer hover:bg-[#E9EDEF] sm:h-11 sm:text-[24px]"
+                        className="box-border flex h-9 shrink-0 items-center justify-center rounded-md text-[20px] leading-none transition data-[active]:bg-[#E9EDEF] hover:cursor-pointer hover:bg-[#E9EDEF] sm:h-10 sm:text-[22px]"
                         style={{
                           ...props.style,
-                          width: "calc(100% / var(--frimousse-list-columns))",
+                          // Fraction of the capped panel width — not the full chat composer.
+                          width: `calc(100% / ${EMOJI_COLUMNS})`,
                         }}
                       >
                         {emoji.emoji}
@@ -228,9 +262,16 @@ export default function ChatEmojiPicker({
 }: ChatEmojiPickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<CategoryTabKey>("smileys");
+  const [autoFocusSearch, setAutoFocusSearch] = useState(false);
 
   useEffect(() => {
-    if (open) setActiveTab("smileys");
+    if (!open) return;
+    setActiveTab("smileys");
+    // Autofocus search only on fine pointers — mobile keyboard fights the picker.
+    const fine =
+      typeof window !== "undefined" &&
+      window.matchMedia("(pointer: fine)").matches;
+    setAutoFocusSearch(fine);
   }, [open]);
 
   useEffect(() => {
@@ -258,6 +299,32 @@ export default function ChatEmojiPicker({
     };
   }, [open, onClose]);
 
+  const jumpToCategory = (key: CategoryTabKey) => {
+    setActiveTab(key);
+    // Frimousse virtualizes rows but keeps every category shell in the DOM
+    // (absolute-positioned). Scroll the viewport to that shell —
+    // scrollIntoView is unreliable with sticky headers + nested overflow.
+    window.requestAnimationFrame(() => {
+      const root = ref.current;
+      if (!root) return;
+      const viewport = root.querySelector(
+        "[frimousse-viewport]",
+      ) as HTMLElement | null;
+      const header = root.querySelector(
+        `[data-emoji-category="${key}"]`,
+      ) as HTMLElement | null;
+      if (!viewport || !header) return;
+      const shell =
+        (header.closest("[frimousse-category]") as HTMLElement | null) ??
+        header;
+      const top =
+        shell.getBoundingClientRect().top -
+        viewport.getBoundingClientRect().top +
+        viewport.scrollTop;
+      viewport.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    });
+  };
+
   if (!open) return null;
 
   return (
@@ -265,18 +332,23 @@ export default function ChatEmojiPicker({
       ref={ref}
       role="dialog"
       aria-label={isAr ? "الرموز التعبيرية" : "Emoji"}
+      dir="ltr"
       onWheel={(e) => e.stopPropagation()}
-      className="absolute inset-x-0 bottom-full z-40 mb-2 flex h-[min(46vh,22rem)] flex-col overflow-hidden rounded-xl border border-[#E9EDEF] bg-[#F7F8FA] shadow-[0_8px_30px_rgba(11,20,26,0.18)]"
+      style={{ width: `min(100%, ${PANEL_MAX_WIDTH_PX}px)` }}
+      className="absolute start-0 bottom-full z-40 mb-2 flex h-[min(42dvh,20rem)] max-h-[20rem] flex-col overflow-hidden rounded-xl border border-[#E9EDEF] bg-[#F7F8FA] shadow-[0_8px_30px_rgba(11,20,26,0.18)]"
     >
       <div className="min-h-0 flex-1 basis-0 overflow-hidden">
         <FrimousseGrid
           isAr={isAr}
           onPick={onPick}
-          categoryIndex={CATEGORY_INDEX[activeTab]}
+          autoFocusSearch={autoFocusSearch}
         />
       </div>
 
-      <div className="flex shrink-0 items-center justify-around gap-0.5 border-t border-[#E9EDEF] bg-white px-1 py-1.5">
+      <div
+        className="flex shrink-0 items-center justify-between gap-0.5 overflow-x-auto border-t border-[#E9EDEF] bg-white px-1 py-1.5"
+        dir="ltr"
+      >
         {CATEGORY_TABS.map((tab) => {
           const selected = activeTab === tab.key;
           const label = isAr ? tab.labelAr : tab.labelEn;
@@ -284,11 +356,12 @@ export default function ChatEmojiPicker({
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => jumpToCategory(tab.key)}
               title={label}
               aria-label={label}
               aria-pressed={selected}
-              className={`flex h-9 w-9 items-center justify-center rounded-full text-[18px] transition hover:cursor-pointer ${
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[16px] transition hover:cursor-pointer ${
                 selected ? "bg-[#E9EDEF]" : "hover:bg-[#F0F2F5]"
               }`}
             >

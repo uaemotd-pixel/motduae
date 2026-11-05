@@ -97,7 +97,8 @@ export function resolveCallHistory(call, reason = "ended") {
       why === "hangup" ||
       why === "peer_disconnect" ||
       why === "chat_ended" ||
-      why === "chat_closed"
+      why === "chat_closed" ||
+      why === "chat_blocked"
     ) {
       return { outcome: "cancelled", durationMs: 0 };
     }

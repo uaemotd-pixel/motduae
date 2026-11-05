@@ -1052,18 +1052,32 @@ export async function notifyLiveChatAgentMessageCustomer({
   recipientUserId,
   agentName,
   message,
+  sessionKind = "support",
   createdBy = null,
 } = {}) {
   const sid = String(sessionId || "").trim();
   const userId = recipientUserId ? String(recipientUserId) : "";
   if (!sid || !userId) return null;
   void messageId;
-  const who = String(agentName || "MOTD Care").trim() || "MOTD Care";
+  const kind = String(sessionKind || "support").toLowerCase();
+  const title =
+    kind === "fabric"
+      ? "Store replied"
+      : kind === "tailor"
+        ? "Tailor replied"
+        : "MOTD Care replied";
+  const who =
+    String(agentName || "").trim() ||
+    (kind === "fabric"
+      ? "Store"
+      : kind === "tailor"
+        ? "Tailor"
+        : "MOTD Care");
   const preview = liveChatPreview(message);
   return upsertUnreadLiveChatNotification({
     dedupeKey: `live_chat_agent_message:${sid}:${userId}`,
     type: "live_chat_agent_message",
-    title: "New support message",
+    title,
     message: `${who}: ${preview}`,
     audience: "customer",
     recipientUserId: userId,
@@ -1112,6 +1126,54 @@ export async function notifyLiveChatCustomerMessageFabricStore({
     dedupeKey: `live_chat_message_fabric:${sid}`,
     type: "live_chat_message",
     title: "Store chat message",
+    message: `${name}: ${preview}`,
+    audience: "customer",
+    recipientUserId: ownerId,
+    createdBy,
+  });
+}
+
+/** Tailor: customer started a chat with this tailor. */
+export async function notifyLiveChatStartedTailor({
+  sessionId,
+  customerName,
+  recipientUserId,
+  createdBy = null,
+} = {}) {
+  const id = String(sessionId || "").trim();
+  const ownerId = recipientUserId ? String(recipientUserId) : "";
+  if (!id || !ownerId) return null;
+  const name = String(customerName || "Customer").trim() || "Customer";
+  return upsertUnreadLiveChatNotification({
+    dedupeKey: `live_chat_started_tailor:${id}`,
+    type: "live_chat_started",
+    title: "New tailor chat",
+    message: `${name} wants to chat with your shop.`,
+    audience: "customer",
+    recipientUserId: ownerId,
+    createdBy,
+  });
+}
+
+/** Tailor: customer messaged while tailor staff not in thread. */
+export async function notifyLiveChatCustomerMessageTailor({
+  sessionId,
+  messageId,
+  customerName,
+  message,
+  recipientUserId,
+  createdBy = null,
+} = {}) {
+  const sid = String(sessionId || "").trim();
+  const ownerId = recipientUserId ? String(recipientUserId) : "";
+  if (!sid || !ownerId) return null;
+  void messageId;
+  const name = String(customerName || "Customer").trim() || "Customer";
+  const preview = liveChatPreview(message);
+  return upsertUnreadLiveChatNotification({
+    dedupeKey: `live_chat_message_tailor:${sid}`,
+    type: "live_chat_message",
+    title: "Tailor chat message",
     message: `${name}: ${preview}`,
     audience: "customer",
     recipientUserId: ownerId,

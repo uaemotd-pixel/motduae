@@ -84,6 +84,29 @@ const liveChatMessageSchema = new mongoose.Schema(
       senderName: { type: String, default: undefined },
     },
     editedAt: { type: Date, default: null },
+    /** Starred / pinned to the top of the thread (order ID, tracking, notes). */
+    pinnedAt: { type: Date, default: null, index: true },
+    pinnedBy: {
+      type: String,
+      enum: ["customer", "agent"],
+      required: false,
+    },
+    /** WhatsApp-style emoji reactions (one per participant role). */
+    reactions: [
+      {
+        emoji: {
+          type: String,
+          required: true,
+          maxlength: 16,
+        },
+        byRole: {
+          type: String,
+          enum: ["customer", "agent"],
+          required: true,
+        },
+        at: { type: Date, default: Date.now },
+      },
+    ],
     at: { type: Date, default: Date.now, index: true },
   },
   { timestamps: true },
@@ -91,6 +114,7 @@ const liveChatMessageSchema = new mongoose.Schema(
 
 liveChatMessageSchema.index({ sessionKey: 1, at: 1 });
 liveChatMessageSchema.index({ sessionKey: 1, role: 1, status: 1 });
+liveChatMessageSchema.index({ sessionKey: 1, pinnedAt: -1 });
 
 const LiveChatMessage = mongoose.model("LiveChatMessage", liveChatMessageSchema);
 

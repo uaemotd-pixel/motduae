@@ -11,6 +11,7 @@ import PasswordChecklist from "@/components/auth/PasswordChecklist";
 import { Eye, EyeOff, Save, Lock, Check, Mail, Edit } from "lucide-react";
 import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
 import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
+import MessagePopupSettingsToggle from "@/components/shared/MessagePopupSettingsToggle";
 import { canChangeAccountEmail } from "@/lib/auth/emailVerification";
 import { useAuth } from "@/context/AuthContext";
 import { useParams } from "next/navigation";
@@ -122,6 +123,8 @@ export default function CustomerSettings({
       </div>
 
       <div className="divide-y divide-gray-100 border-t border-gray-100">
+        <MessagePopupSettingsToggle variant="account" />
+
         {/* Change email */}
         {canChangeEmail ? (
           <div className="py-4 sm:py-5 space-y-4">

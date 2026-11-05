@@ -252,7 +252,17 @@ function ShopProfileReadout({
                 onContactPermissionChange("allowLiveChatAudioCalls", next)
               }
             />
-          ) : null}
+          ) : (
+            <ContactPermissionToggle
+              enabled={Boolean(shop.allowLiveChatAudioCalls)}
+              busy={contactBusy}
+              title="Allow tailor to make audio call with customer"
+              description="When enabled, the tailor can start in-chat audio calls with customers. When disabled, the audio call control is hidden in their messages inbox."
+              onChange={(next) =>
+                onContactPermissionChange("allowLiveChatAudioCalls", next)
+              }
+            />
+          )}
         </div>
       </div>
 
@@ -525,7 +535,10 @@ export default function PartnerApplicationReview({
     const previous = {
       allowCustomerCalls: Boolean(data.shop.allowCustomerCalls),
       allowCustomerSocial: Boolean(data.shop.allowCustomerSocial),
-      allowLiveChatAudioCalls: data.shop.allowLiveChatAudioCalls !== false,
+      allowLiveChatAudioCalls:
+        kind === "tailor"
+          ? Boolean(data.shop.allowLiveChatAudioCalls)
+          : data.shop.allowLiveChatAudioCalls !== false,
     };
 
     setData((prev) =>

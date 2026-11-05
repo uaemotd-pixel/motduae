@@ -42,7 +42,10 @@ import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
 import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import { getTranslation } from "@/lib/getTranslation";
-import { useNotificationUnreadCount } from "@/hooks/useNotifications";
+import {
+  useLiveChatUnreadBadge,
+  useNotificationUnreadCount,
+} from "@/hooks/useNotifications";
 
 const SIDEBAR_EXPANDED_W = 288; // w-72
 const SIDEBAR_COLLAPSED_W = 72; // icon rail
@@ -79,6 +82,10 @@ export default function FabricPortalShell({
   const desktopSidebarWidth = sidebarWidth;
 
   const { count: unreadNotificationCount } = useNotificationUnreadCount(
+    "customer",
+    Boolean(user),
+  );
+  const { count: liveChatUnreadCount } = useLiveChatUnreadBadge(
     "customer",
     Boolean(user),
   );
@@ -342,7 +349,11 @@ export default function FabricPortalShell({
           const Icon = item.icon;
           const isActive = isActiveLink(item.href);
           const badge =
-            item.href === "/fabric/notifications" ? unreadNotificationCount : 0;
+            item.href === "/fabric/messages"
+              ? liveChatUnreadCount
+              : item.href === "/fabric/notifications"
+                ? unreadNotificationCount
+                : 0;
 
           return (
             <Link
@@ -373,7 +384,7 @@ export default function FabricPortalShell({
                   <span className="min-w-0 flex-1 truncate text-start">
                     {item.label}
                   </span>
-                  {item.href === "/fabric/notifications" && badge > 0 ? (
+                  {badge > 0 ? (
                     <span
                       className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[11px] font-semibold shadow-sm ${
                         isActive
