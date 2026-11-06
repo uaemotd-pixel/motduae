@@ -1506,6 +1506,11 @@ export function initSocketServer(httpServer) {
 
 export { staffOnlineCount };
 
+/** True only after initSocketServer (long-lived Lightsail Node). */
+export function isSocketServerReady() {
+  return io != null;
+}
+
 export function getIo() {
   return io;
 }
